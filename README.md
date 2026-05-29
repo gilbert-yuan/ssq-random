@@ -4,9 +4,27 @@
 
 ## 运行
 
+需要 Node.js 18 或更高版本。项目只使用 Node.js 标准库，不需要安装第三方依赖。
+
+Windows PowerShell：
+
 ```powershell
 cd /d D:\myerp\ssq-random
 npm start
+```
+
+Ubuntu / Linux：
+
+```bash
+cd /path/to/ssq-random
+npm start
+```
+
+也可以使用启动脚本：
+
+```bash
+chmod +x ./start.sh
+./start.sh
 ```
 
 启动后打开：
@@ -15,7 +33,13 @@ npm start
 http://127.0.0.1:5173
 ```
 
-也可以双击 `start.bat` 启动。
+Windows 下也可以双击 `start.bat` 启动。
+
+运行自检：
+
+```bash
+npm test
+```
 
 ## 功能
 

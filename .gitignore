@@ -1,4 +1,6 @@
 node_modules/
 data/cache/
+npm-debug.log*
+.env
 .DS_Store
 Thumbs.db

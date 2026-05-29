@@ -7,7 +7,9 @@ const CHECK_FILES = [
   "package.json",
   "data/records.json",
   "data/community-sources.json",
-  "data/ssq-sample.json"
+  "data/ssq-sample.json",
+  "start.sh",
+  "start.bat"
 ];
 
 function checkSyntax(file) {
@@ -26,6 +28,24 @@ function checkSyntax(file) {
 
 async function checkJson(file) {
   JSON.parse(await fs.promises.readFile(file, "utf8"));
+}
+
+async function checkLauncherScripts() {
+  const shellScript = await fs.promises.readFile("start.sh", "utf8");
+  if (!shellScript.startsWith("#!/usr/bin/env sh\n")) {
+    throw new Error("start.sh must use an sh shebang with LF line endings");
+  }
+  if (shellScript.includes("\r\n")) {
+    throw new Error("start.sh must use LF line endings for Ubuntu compatibility");
+  }
+  if (!shellScript.includes("npm start")) {
+    throw new Error("start.sh must run npm start");
+  }
+
+  const batchScript = await fs.promises.readFile("start.bat", "utf8");
+  if (!/npm start/i.test(batchScript)) {
+    throw new Error("start.bat must run npm start");
+  }
 }
 
 async function waitForServer(port, timeoutMs = 5000) {
@@ -78,6 +98,7 @@ async function withServer(run) {
 async function main() {
   await Promise.all(CHECK_FILES.filter((file) => file.endsWith(".js")).map(checkSyntax));
   await Promise.all(CHECK_FILES.filter((file) => file.endsWith(".json")).map(checkJson));
+  await checkLauncherScripts();
 
   await withServer(async (port) => {
     await checkEndpoint(port, "/", (text) => {
