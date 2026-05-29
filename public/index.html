@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>双色球分析台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">MYERP · 双色球</p>
+          <h1>双色球分析台</h1>
+        </div>
+        <div class="actions">
+          <label class="field compact">
+            <span>期数</span>
+            <input id="limitInput" type="number" min="30" max="1000" value="240" />
+          </label>
+          <button id="fetchDrawsBtn" class="primary" type="button">一键获取</button>
+          <button id="generateBtn" type="button">生成建议号</button>
+          <button id="communityBtn" type="button">拉取大神推荐</button>
+          <button id="exportBtn" type="button">导出 CSV</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="status-band" id="statusBand">
+          <div>
+            <span class="status-dot"></span>
+            <span id="statusText">准备就绪</span>
+          </div>
+          <span id="sourceText">等待获取开奖数据</span>
+        </section>
+
+        <section class="workspace-grid">
+          <aside class="left-rail">
+            <div class="panel latest-panel">
+              <div class="panel-title">
+                <h2>最新开奖</h2>
+                <span id="latestIssue">--</span>
+              </div>
+              <div id="latestBalls" class="ball-row muted">暂无数据</div>
+              <dl class="meta-list" id="latestMeta"></dl>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h2>趋势建议</h2>
+                <span id="confidenceText">--</span>
+              </div>
+              <ul class="advice-list" id="adviceList"></ul>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h2>社区来源</h2>
+                <span id="communityCount">0 条</span>
+              </div>
+              <textarea id="sourceUrls" spellcheck="false"></textarea>
+              <div id="communityResults" class="community-list muted">尚未拉取</div>
+            </div>
+          </aside>
+
+          <section class="main-stage">
+            <div class="summary-grid" id="summaryGrid"></div>
+
+            <div class="panel numbers-panel">
+              <div class="panel-title">
+                <h2>一键建议号</h2>
+                <div class="toolbar">
+                  <select id="strategySelect" aria-label="选号策略">
+                    <option value="balanced">均衡趋势</option>
+                    <option value="hot">热号追踪</option>
+                    <option value="cold">冷号补位</option>
+                    <option value="community">社区共振</option>
+                    <option value="blue">蓝球重点</option>
+                  </select>
+                  <span id="ticketMode">均衡趋势</span>
+                </div>
+              </div>
+              <div id="tickets" class="tickets empty-state">点击“生成建议号”</div>
+            </div>
+
+            <div class="analysis-grid">
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>策略回测</h2>
+                  <span id="backtestScope">待生成</span>
+                </div>
+                <div id="backtestPanel" class="backtest-grid muted">暂无回测</div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>收藏号码</h2>
+                  <span id="favoriteCount">0 注</span>
+                </div>
+                <div id="favoritesPanel" class="tickets compact-list muted">暂无收藏</div>
+              </div>
+            </div>
+
+            <div class="analysis-grid">
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>命中闭环</h2>
+                  <span id="recordScope">待核对</span>
+                </div>
+                <div id="recordSummary" class="backtest-grid muted">暂无记录</div>
+                <div id="recordList" class="record-list muted">暂无历史推荐</div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>大神战绩</h2>
+                  <span id="performanceScope">待积累</span>
+                </div>
+                <div id="performanceList" class="score-list muted">暂无战绩</div>
+              </div>
+            </div>
+
+            <div class="analysis-grid">
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>红球分布</h2>
+                  <span>01-33</span>
+                </div>
+                <div id="redChart" class="bar-chart"></div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>蓝球分布</h2>
+                  <span>01-16</span>
+                </div>
+                <div id="blueChart" class="bar-chart blue"></div>
+              </div>
+            </div>
+
+            <div class="analysis-grid">
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>形态概览</h2>
+                  <span id="shapeScope">近 0 期</span>
+                </div>
+                <div id="shapeStats" class="shape-grid"></div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-title">
+                  <h2>社区共振</h2>
+                  <span id="communitySourceText">待拉取</span>
+                </div>
+                <div id="communityAggregate" class="tickets compact-list muted">暂无数据</div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h2>来源评分</h2>
+                <span id="sourceScoreScope">待拉取</span>
+              </div>
+              <div id="sourceScores" class="score-list muted">暂无数据</div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <footer>
+        数据分析只反映历史样本和公开页面文本，不能提高随机开奖的确定性。请理性参考。
+      </footer>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "myerp-ssq-advisor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "双色球一键选号、历史分布分析、趋势建议和社区推荐号拉取工具",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node scripts/smoke-test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
