@@ -8,6 +8,6 @@
     "test": "node scripts/smoke-test.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   }
 }

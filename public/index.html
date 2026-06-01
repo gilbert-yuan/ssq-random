@@ -83,6 +83,37 @@
               <div id="tickets" class="tickets empty-state">点击“生成建议号”</div>
             </div>
 
+            <div class="panel manual-panel">
+              <div class="panel-title">
+                <h2>自选补全</h2>
+                <div class="toolbar">
+                  <select id="manualStrategySelect" aria-label="自选补全规则">
+                    <option value="balanced">均衡趋势</option>
+                    <option value="hot">热号追踪</option>
+                    <option value="cold">冷号补位</option>
+                    <option value="community">社区共振</option>
+                    <option value="blue">蓝球重点</option>
+                  </select>
+                  <button id="completePickBtn" type="button">补全</button>
+                  <button id="clearPickBtn" type="button">清空</button>
+                </div>
+              </div>
+              <div class="manual-grid">
+                <div>
+                  <div class="mini-title">红球</div>
+                  <div id="manualRedGrid" class="number-grid red"></div>
+                </div>
+                <div>
+                  <div class="mini-title">蓝球</div>
+                  <div id="manualBlueGrid" class="number-grid blue"></div>
+                </div>
+              </div>
+              <div class="manual-result-grid">
+                <div id="manualPickResult" class="tickets compact-list muted">选择部分红球或蓝球后会自动补全。</div>
+                <div id="manualPositionList" class="position-list muted">暂无指标定位</div>
+              </div>
+            </div>
+
             <div class="analysis-grid">
               <div class="panel">
                 <div class="panel-title">
@@ -99,6 +130,29 @@
                 </div>
                 <div id="favoritesPanel" class="tickets compact-list muted">暂无收藏</div>
               </div>
+            </div>
+
+            <div class="panel indicator-panel">
+              <div class="panel-title">
+                <h2>指标回测走势</h2>
+                <span id="indicatorScope">待计算</span>
+              </div>
+              <div id="indicatorBacktest" class="backtest-grid muted">暂无指标回测</div>
+              <div class="line-chart-grid">
+                <div class="line-chart-card">
+                  <div class="mini-title">和值与回归线</div>
+                  <div id="sumLineChart" class="line-chart"></div>
+                </div>
+                <div class="line-chart-card">
+                  <div class="mini-title">冷热占比</div>
+                  <div id="ratioLineChart" class="line-chart"></div>
+                </div>
+                <div class="line-chart-card">
+                  <div class="mini-title">奇偶走势</div>
+                  <div id="oddLineChart" class="line-chart"></div>
+                </div>
+              </div>
+              <div id="classificationList" class="classification-list"></div>
             </div>
 
             <div class="analysis-grid">

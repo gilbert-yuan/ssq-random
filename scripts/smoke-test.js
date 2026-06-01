@@ -12,6 +12,16 @@ const CHECK_FILES = [
   "start.bat"
 ];
 
+function walkFiles(dir, filter) {
+  if (!fs.existsSync(dir)) return [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  return entries.flatMap((entry) => {
+    const fullPath = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) return walkFiles(fullPath, filter);
+    return filter(fullPath) ? [fullPath] : [];
+  });
+}
+
 function checkSyntax(file) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--check", file], { stdio: "pipe" });
@@ -96,7 +106,14 @@ async function withServer(run) {
 }
 
 async function main() {
-  await Promise.all(CHECK_FILES.filter((file) => file.endsWith(".js")).map(checkSyntax));
+  const jsFiles = Array.from(
+    new Set([
+      ...CHECK_FILES.filter((file) => file.endsWith(".js")),
+      ...walkFiles("src/server", (file) => file.endsWith(".js")),
+      ...walkFiles("public/js", (file) => file.endsWith(".js"))
+    ])
+  );
+  await Promise.all(jsFiles.map(checkSyntax));
   await Promise.all(CHECK_FILES.filter((file) => file.endsWith(".json")).map(checkJson));
   await checkLauncherScripts();
 
@@ -116,6 +133,22 @@ async function main() {
         throw new Error("records endpoint returned an invalid payload");
       }
     });
+    await checkEndpoint(port, "/api/metrics?limit=30", (text) => {
+      const payload = JSON.parse(text);
+      if (!payload.ok || !Array.isArray(payload.series)) {
+        throw new Error("metrics endpoint returned an invalid payload");
+      }
+    });
+    const completion = await fetch(`http://127.0.0.1:${port}/api/complete-ticket`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reds: ["01", "02"], blue: "03", strategy: "balanced" })
+    });
+    if (!completion.ok) throw new Error(`complete-ticket returned HTTP ${completion.status}`);
+    const completionPayload = await completion.json();
+    if (!completionPayload.ok || completionPayload.ticket?.reds?.length !== 6 || !completionPayload.ticket?.blue) {
+      throw new Error("complete-ticket endpoint returned an invalid ticket");
+    }
     await checkEndpoint(port, "/api/community?urls=http%3A%2F%2F127.0.0.1%3A5199%2F", (text) => {
       const payload = JSON.parse(text);
       if (!payload.errors?.some((item) => /local and private network/i.test(item.error))) {
