@@ -1,0 +1,121 @@
+<view class="page">
+  <view class="panel hero-card">
+    <view class="hero-top">
+      <view class="hero-copy">
+        <text class="hero-eyebrow">LOTTO LAB</text>
+        <text class="hero-title">双色球助手</text>
+        <text class="hero-subtitle">{{statusText}}</text>
+        <text class="hero-description">参考果冻 API 首页的手账白板感，把开奖、趋势和推荐号做成更轻快的移动端首页。</text>
+      </view>
+      <button class="sketch-button soft hero-button" bindtap="goToPicks">我的选号</button>
+    </view>
+
+    <view class="hero-tags">
+      <view class="badge-chip badge-yellow">历史走势</view>
+      <view class="badge-chip badge-blue">推荐号码</view>
+      <view class="badge-chip badge-pink">快速参考</view>
+      <view class="badge-chip badge-green">命中播报</view>
+    </view>
+  </view>
+
+  <view class="announce" wx:if="{{hasAnnouncements}}">
+    <view class="badge-chip badge-orange announce-tag">中奖播报</view>
+    <swiper class="announce-swiper" vertical autoplay circular interval="2800" duration="450">
+      <swiper-item wx:for="{{announcements}}" wx:key="id">
+        <view class="announce-item">
+          <text class="announce-text">{{item.text}}</text>
+        </view>
+      </swiper-item>
+    </swiper>
+  </view>
+
+  <view class="panel summary-panel">
+    <view class="panel-head">
+      <text class="panel-title">我的战绩</text>
+      <text class="panel-link" bindtap="goToPicks">查看全部</text>
+    </view>
+    <view class="summary-grid">
+      <view class="summary-item summary-yellow">
+        <text class="summary-value">{{mySummary.total}}</text>
+        <text class="summary-label">已保存</text>
+      </view>
+      <view class="summary-item summary-blue">
+        <text class="summary-value">{{mySummary.pendingCount}}</text>
+        <text class="summary-label">待开奖</text>
+      </view>
+      <view class="summary-item summary-pink">
+        <text class="summary-value">{{mySummary.winCount}}</text>
+        <text class="summary-label">已中奖</text>
+      </view>
+      <view class="summary-item summary-white">
+        <text class="summary-value amount">{{mySummary.totalAmountText}}</text>
+        <text class="summary-label">累计奖金</text>
+      </view>
+    </view>
+    <text class="summary-note">{{mySummary.bestText}}</text>
+  </view>
+
+  <view class="panel" wx:if="{{latestDraw}}">
+    <view class="panel-head">
+      <text class="panel-title">最新开奖</text>
+      <text class="panel-meta">第 {{latestDraw.issue}} 期</text>
+    </view>
+    <view class="ball-row">
+      <view class="ball red" wx:for="{{latestDraw.reds}}" wx:key="*this">{{item}}</view>
+      <view class="ball blue">{{latestDraw.blue}}</view>
+    </view>
+    <view class="draw-meta">
+      <text>{{latestDraw.date}}</text>
+      <text>{{latestDraw.source}}</text>
+    </view>
+    <view class="draw-stats">
+      <view class="stat-chip stat-yellow">
+        <text class="stat-chip-label">和值</text>
+        <text class="stat-chip-value">{{latestDraw.sum}}</text>
+      </view>
+      <view class="stat-chip stat-blue">
+        <text class="stat-chip-label">跨度</text>
+        <text class="stat-chip-value">{{latestDraw.span}}</text>
+      </view>
+      <view class="stat-chip stat-pink">
+        <text class="stat-chip-label">AC</text>
+        <text class="stat-chip-value">{{latestDraw.ac}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel" wx:if="{{trendCards.length}}">
+    <view class="panel-head">
+      <text class="panel-title">快速参考</text>
+      <text class="panel-meta">近 30 期</text>
+    </view>
+    <view class="trend-grid">
+      <view class="trend-card trend-card-{{index}}" wx:for="{{trendCards}}" wx:key="title">
+        <text class="trend-title">{{item.title}}</text>
+        <text class="trend-value">{{item.value}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="panel-head">
+      <text class="panel-title">推荐号码</text>
+      <picker mode="selector" range="{{strategyLabels}}" bindchange="onStrategyChange">
+        <view class="picker-chip">{{currentStrategyLabel}}</view>
+      </picker>
+    </view>
+
+    <view class="ticket-card" wx:if="{{hasTicket}}">
+      <view class="ball-row">
+        <view class="ball red" wx:for="{{ticket.reds}}" wx:key="*this">{{item}}</view>
+        <view class="ball blue">{{ticket.blue}}</view>
+      </view>
+      <text class="ticket-reason">{{ticket.reason}}</text>
+    </view>
+
+    <view class="action-row">
+      <button class="sketch-button primary action" loading="{{ticketLoading}}" bindtap="generateTicket">换一组</button>
+      <button class="sketch-button action" disabled="{{!hasTicket}}" bindtap="saveSuggestedTicket">保存</button>
+    </view>
+  </view>
+</view>

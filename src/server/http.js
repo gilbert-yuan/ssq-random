@@ -1,7 +1,8 @@
-function sendJson(res, status, payload) {
+function sendJson(res, status, payload, headers = {}) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    ...headers
   });
   res.end(JSON.stringify(payload, null, 2));
 }
@@ -22,7 +23,20 @@ async function readRequestBody(req, limit = 1024 * 1024) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+async function readJsonBody(req, limit = 1024 * 1024) {
+  const body = await readRequestBody(req, limit);
+  if (!body) return {};
+  try {
+    return JSON.parse(body);
+  } catch {
+    const error = new Error("invalid JSON body");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
 module.exports = {
+  readJsonBody,
   readRequestBody,
   sendJson,
   sendText

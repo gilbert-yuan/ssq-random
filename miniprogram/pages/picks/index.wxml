@@ -1,0 +1,143 @@
+<view class="page">
+  <view class="panel hero-card">
+    <text class="hero-eyebrow">MY PICKS</text>
+    <text class="hero-title">我的选号</text>
+    <text class="hero-subtitle">{{statusText}}</text>
+    <text class="hero-description">把自选补全、置顶收藏和中奖闭环放进同一张便签工作板里，查看会更轻松。</text>
+    <view class="hero-tags">
+      <view class="badge-chip badge-blue">智能补全</view>
+      <view class="badge-chip badge-yellow">中奖状态</view>
+      <view class="badge-chip badge-pink">置顶收藏</view>
+      <view class="badge-chip badge-green">自动核对</view>
+    </view>
+  </view>
+
+  <view class="announce" wx:if="{{hasAnnouncements}}">
+    <view class="badge-chip badge-orange announce-tag">全员轮播</view>
+    <swiper class="announce-swiper" vertical autoplay circular interval="2800" duration="450">
+      <swiper-item wx:for="{{announcements}}" wx:key="id">
+        <view class="announce-item">
+          <text class="announce-text">{{item.text}}</text>
+        </view>
+      </swiper-item>
+    </swiper>
+  </view>
+
+  <view class="panel">
+    <view class="panel-head">
+      <text class="panel-title">中奖概览</text>
+      <text class="panel-meta">保存后自动核对</text>
+    </view>
+    <view class="summary-grid">
+      <view class="summary-item summary-yellow">
+        <text class="summary-value">{{summary.total}}</text>
+        <text class="summary-label">我的号码</text>
+      </view>
+      <view class="summary-item summary-blue">
+        <text class="summary-value">{{summary.pendingCount}}</text>
+        <text class="summary-label">待开奖</text>
+      </view>
+      <view class="summary-item summary-pink">
+        <text class="summary-value">{{summary.winCount}}</text>
+        <text class="summary-label">已中奖</text>
+      </view>
+      <view class="summary-item summary-white">
+        <text class="summary-value amount">{{summary.totalAmountText}}</text>
+        <text class="summary-label">累计奖金</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="panel-head">
+      <text class="panel-title">新增一组</text>
+      <picker mode="selector" range="{{strategyLabels}}" bindchange="onStrategyChange">
+        <view class="picker-chip">{{currentStrategyLabel}}</view>
+      </picker>
+    </view>
+
+    <text class="group-title">红球</text>
+    <view class="number-grid">
+      <view
+        class="pick {{item.selected ? 'pick-red-active' : ''}}"
+        wx:for="{{redOptions}}"
+        wx:key="number"
+        data-number="{{item.number}}"
+        bindtap="toggleRed"
+      >
+        {{item.number}}
+      </view>
+    </view>
+
+    <text class="group-title">蓝球</text>
+    <view class="number-grid">
+      <view
+        class="pick {{item.active ? 'pick-blue-active' : ''}}"
+        wx:for="{{blueOptions}}"
+        wx:key="number"
+        data-number="{{item.number}}"
+        bindtap="toggleBlue"
+      >
+        {{item.number}}
+      </view>
+    </view>
+
+    <view class="action-row">
+      <button class="sketch-button primary action" loading="{{manualLoading}}" bindtap="completeManual">智能补全</button>
+      <button class="sketch-button action" bindtap="clearManual">清空</button>
+    </view>
+
+    <view class="ticket-card" wx:if="{{hasManualTicket}}">
+      <view class="ball-row">
+        <view class="ball red" wx:for="{{manualTicket.reds}}" wx:key="*this">{{item}}</view>
+        <view class="ball blue">{{manualTicket.blue}}</view>
+      </view>
+      <text class="ticket-reason">{{manualTicket.reason}}</text>
+      <text class="ticket-type" wx:if="{{manualTypeLabel}}">{{manualTypeLabel}}</text>
+      <view class="position-list">
+        <view class="position-row" wx:for="{{manualRows}}" wx:key="label">
+          <text class="position-label">{{item.label}}</text>
+          <text class="position-value">{{item.value}}</text>
+          <text class="position-rank">{{item.percentileText}}</text>
+        </view>
+      </view>
+      <button class="sketch-button soft save-button" bindtap="saveManualTicket">保存到我的选号</button>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="panel-head">
+      <text class="panel-title">已保存号码</text>
+      <picker mode="selector" range="{{filterOptions}}" value="{{filterIndex}}" bindchange="onFilterChange">
+        <view class="picker-chip compact-chip">{{currentFilterLabel}}</view>
+      </picker>
+    </view>
+
+    <view class="list-count">{{filteredRecords.length}} / {{records.length}} 组</view>
+    <view class="empty-state" wx:if="{{!filteredRecords.length}}">当前筛选下没有号码</view>
+
+    <view class="record-card {{item.isPinned ? 'pinned-card' : ''}}" wx:for="{{filteredRecords}}" wx:key="id">
+      <view class="record-head">
+        <view class="record-status-wrap">
+          <text class="record-status {{item.isWon ? 'won' : item.isPending ? 'pending' : 'lost'}}">{{item.statusText}}</text>
+          <text class="pinned-badge" wx:if="{{item.isPinned}}">置顶</text>
+        </view>
+        <text class="record-amount">{{item.amountText}}</text>
+      </view>
+
+      <view class="ball-row compact">
+        <view class="ball ball-small red" wx:for="{{item.reds}}" wx:key="*this">{{item}}</view>
+        <view class="ball ball-small blue">{{item.blue}}</view>
+      </view>
+
+      <text class="record-meta">{{item.createdAtText}}</text>
+      <text class="record-check">{{item.checkText}}</text>
+      <text class="record-draw" wx:if="{{item.drawText}}">{{item.drawText}}</text>
+
+      <view class="record-actions">
+        <button class="sketch-button mini-action" data-id="{{item.id}}" bindtap="togglePinRecord">{{item.pinLabel}}</button>
+        <button class="sketch-button mini-action danger" data-id="{{item.id}}" bindtap="deleteRecord">删除</button>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,97 +1,192 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const { DatabaseSync } = require("node:sqlite");
-const { DATA_DIR, SQLITE_FILE } = require("./config");
+const { DATABASE_URL, DB_SSL, DEFAULT_USER_ID } = require("./config");
 
-let db;
+let PoolCtor;
+let pool;
+let migrationPromise;
 
-function getDb() {
-  if (db) return db;
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  db = new DatabaseSync(SQLITE_FILE);
-  db.exec("PRAGMA foreign_keys = ON");
-  db.exec("PRAGMA journal_mode = WAL");
-  migrate();
-  return db;
+function getPoolCtor() {
+  if (PoolCtor) return PoolCtor;
+  ({ Pool: PoolCtor } = require("pg"));
+  return PoolCtor;
 }
 
-function migrate() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS draws (
-      issue TEXT PRIMARY KEY,
-      draw_date TEXT NOT NULL DEFAULT '',
-      red1 TEXT NOT NULL,
-      red2 TEXT NOT NULL,
-      red3 TEXT NOT NULL,
-      red4 TEXT NOT NULL,
-      red5 TEXT NOT NULL,
-      red6 TEXT NOT NULL,
-      blue TEXT NOT NULL,
-      sales TEXT NOT NULL DEFAULT '',
-      pool_money TEXT NOT NULL DEFAULT '',
-      source TEXT NOT NULL DEFAULT '',
-      fetched_at TEXT NOT NULL
-    );
+function getPool() {
+  if (pool) return pool;
+  if (!DATABASE_URL) {
+    throw new Error("DATABASE_URL is required when using PostgreSQL");
+  }
+  const Pool = getPoolCtor();
+  pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: DB_SSL ? { rejectUnauthorized: false } : false
+  });
+  return pool;
+}
 
-    CREATE TABLE IF NOT EXISTS records (
-      id TEXT PRIMARY KEY,
-      type TEXT NOT NULL,
-      ticket_key TEXT NOT NULL,
-      reds_json TEXT NOT NULL,
-      blue TEXT NOT NULL,
-      strategy TEXT NOT NULL DEFAULT '',
-      source_name TEXT NOT NULL DEFAULT '',
-      source_url TEXT NOT NULL DEFAULT '',
-      base_issue TEXT NOT NULL DEFAULT '',
-      base_date TEXT NOT NULL DEFAULT '',
-      reason TEXT NOT NULL DEFAULT '',
-      score REAL,
-      created_at TEXT NOT NULL
-    );
+async function query(text, params = []) {
+  await migrate();
+  return getPool().query(text, params);
+}
 
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_records_dedup
-      ON records (type, ticket_key, base_issue, strategy, source_name);
+async function withClient(run) {
+  await migrate();
+  const client = await getPool().connect();
+  try {
+    return await run(client);
+  } finally {
+    client.release();
+  }
+}
 
-    CREATE TABLE IF NOT EXISTS draw_indicators (
-      issue TEXT PRIMARY KEY REFERENCES draws(issue) ON DELETE CASCADE,
-      draw_date TEXT NOT NULL DEFAULT '',
-      sum_value INTEGER NOT NULL,
-      span_value INTEGER NOT NULL,
-      odd_count INTEGER NOT NULL,
-      even_count INTEGER NOT NULL,
-      big_count INTEGER NOT NULL,
-      small_count INTEGER NOT NULL,
-      prime_count INTEGER NOT NULL,
-      composite_count INTEGER NOT NULL,
-      zone_low INTEGER NOT NULL,
-      zone_mid INTEGER NOT NULL,
-      zone_high INTEGER NOT NULL,
-      mod0 INTEGER NOT NULL,
-      mod1 INTEGER NOT NULL,
-      mod2 INTEGER NOT NULL,
-      consecutive_count INTEGER NOT NULL,
-      ac_value INTEGER NOT NULL,
-      repeat_count INTEGER NOT NULL,
-      blue_odd INTEGER NOT NULL,
-      hot_count INTEGER NOT NULL,
-      warm_count INTEGER NOT NULL,
-      cold_count INTEGER NOT NULL,
-      hot_ratio REAL NOT NULL,
-      cold_ratio REAL NOT NULL,
-      sum_type TEXT NOT NULL,
-      parity_type TEXT NOT NULL,
-      size_type TEXT NOT NULL,
-      zone_type TEXT NOT NULL,
-      hot_cold_type TEXT NOT NULL,
-      type_label TEXT NOT NULL,
-      regression_sum REAL NOT NULL,
-      regression_residual REAL NOT NULL,
-      updated_at TEXT NOT NULL
-    );
+async function migrate() {
+  if (migrationPromise) return migrationPromise;
+  migrationPromise = (async () => {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL,
+          username_norm TEXT NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          display_name TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL,
+          last_login_at TIMESTAMPTZ
+        );
 
-    CREATE INDEX IF NOT EXISTS idx_draws_issue_order ON draws (CAST(issue AS INTEGER) DESC);
-    CREATE INDEX IF NOT EXISTS idx_indicators_issue_order ON draw_indicators (CAST(issue AS INTEGER) DESC);
-  `);
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_hash TEXT NOT NULL UNIQUE,
+          client_type TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          last_seen_at TIMESTAMPTZ NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS draws (
+          issue TEXT PRIMARY KEY,
+          draw_date TEXT NOT NULL DEFAULT '',
+          red1 TEXT NOT NULL,
+          red2 TEXT NOT NULL,
+          red3 TEXT NOT NULL,
+          red4 TEXT NOT NULL,
+          red5 TEXT NOT NULL,
+          red6 TEXT NOT NULL,
+          blue TEXT NOT NULL,
+          sales TEXT NOT NULL DEFAULT '',
+          pool_money TEXT NOT NULL DEFAULT '',
+          source TEXT NOT NULL DEFAULT '',
+          fetched_at TIMESTAMPTZ NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS records (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL DEFAULT 'default',
+          type TEXT NOT NULL,
+          ticket_key TEXT NOT NULL,
+          reds_json JSONB NOT NULL,
+          blue TEXT NOT NULL,
+          strategy TEXT NOT NULL DEFAULT '',
+          source_name TEXT NOT NULL DEFAULT '',
+          source_url TEXT NOT NULL DEFAULT '',
+          base_issue TEXT NOT NULL DEFAULT '',
+          base_date TEXT NOT NULL DEFAULT '',
+          reason TEXT NOT NULL DEFAULT '',
+          score DOUBLE PRECISION,
+          pinned_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS draw_indicators (
+          issue TEXT PRIMARY KEY REFERENCES draws(issue) ON DELETE CASCADE,
+          draw_date TEXT NOT NULL DEFAULT '',
+          sum_value INTEGER NOT NULL,
+          span_value INTEGER NOT NULL,
+          odd_count INTEGER NOT NULL,
+          even_count INTEGER NOT NULL,
+          big_count INTEGER NOT NULL,
+          small_count INTEGER NOT NULL,
+          prime_count INTEGER NOT NULL,
+          composite_count INTEGER NOT NULL,
+          zone_low INTEGER NOT NULL,
+          zone_mid INTEGER NOT NULL,
+          zone_high INTEGER NOT NULL,
+          mod0 INTEGER NOT NULL,
+          mod1 INTEGER NOT NULL,
+          mod2 INTEGER NOT NULL,
+          consecutive_count INTEGER NOT NULL,
+          ac_value INTEGER NOT NULL,
+          repeat_count INTEGER NOT NULL,
+          blue_odd INTEGER NOT NULL,
+          hot_count INTEGER NOT NULL,
+          warm_count INTEGER NOT NULL,
+          cold_count INTEGER NOT NULL,
+          hot_ratio DOUBLE PRECISION NOT NULL,
+          cold_ratio DOUBLE PRECISION NOT NULL,
+          sum_type TEXT NOT NULL,
+          parity_type TEXT NOT NULL,
+          size_type TEXT NOT NULL,
+          zone_type TEXT NOT NULL,
+          hot_cold_type TEXT NOT NULL,
+          type_label TEXT NOT NULL,
+          regression_sum DOUBLE PRECISION NOT NULL,
+          regression_residual DOUBLE PRECISION NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL
+        );
+      `);
+
+      await ensureColumn(client, "records", "user_id", "TEXT NOT NULL DEFAULT 'default'");
+      await ensureColumn(client, "records", "pinned_at", "TIMESTAMPTZ");
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_users_created_at
+          ON users (created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_sessions_user
+          ON sessions (user_id, expires_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_sessions_expires
+          ON sessions (expires_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_records_dedup
+          ON records (user_id, type, ticket_key, base_issue, strategy, source_name);
+        CREATE INDEX IF NOT EXISTS idx_records_order
+          ON records (user_id, pinned_at DESC NULLS LAST, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_draws_issue_order
+          ON draws ((issue::BIGINT) DESC);
+        CREATE INDEX IF NOT EXISTS idx_indicators_issue_order
+          ON draw_indicators ((issue::BIGINT) DESC);
+      `);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      migrationPromise = null;
+      throw error;
+    } finally {
+      client.release();
+    }
+  })();
+  return migrationPromise;
+}
+
+async function ensureColumn(client, table, column, definition) {
+  const result = await client.query(
+    `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = $1
+        AND column_name = $2
+    `,
+    [table, column]
+  );
+  if (!result.rowCount) {
+    await client.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+function timestamp(value) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
 }
 
 function rowToDraw(row) {
@@ -109,9 +204,10 @@ function rowToDraw(row) {
 function rowToRecord(row) {
   return {
     id: row.id,
+    userId: row.user_id,
     type: row.type,
     key: row.ticket_key,
-    reds: JSON.parse(row.reds_json),
+    reds: Array.isArray(row.reds_json) ? row.reds_json : JSON.parse(row.reds_json),
     blue: row.blue,
     strategy: row.strategy,
     sourceName: row.source_name,
@@ -120,7 +216,8 @@ function rowToRecord(row) {
     baseDate: row.base_date,
     reason: row.reason,
     score: row.score,
-    createdAt: row.created_at
+    pinnedAt: timestamp(row.pinned_at),
+    createdAt: timestamp(row.created_at)
   };
 }
 
@@ -158,263 +255,284 @@ function rowToIndicator(row) {
   };
 }
 
-function upsertDraws(draws) {
+async function upsertDraws(draws) {
   if (!draws.length) return 0;
-  const database = getDb();
   const now = new Date().toISOString();
-  const stmt = database.prepare(`
-    INSERT INTO draws (
-      issue, draw_date, red1, red2, red3, red4, red5, red6, blue,
-      sales, pool_money, source, fetched_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(issue) DO UPDATE SET
-      draw_date = excluded.draw_date,
-      red1 = excluded.red1,
-      red2 = excluded.red2,
-      red3 = excluded.red3,
-      red4 = excluded.red4,
-      red5 = excluded.red5,
-      red6 = excluded.red6,
-      blue = excluded.blue,
-      sales = excluded.sales,
-      pool_money = excluded.pool_money,
-      source = excluded.source,
-      fetched_at = excluded.fetched_at
-  `);
-
-  database.exec("BEGIN");
-  try {
-    draws.forEach((draw) => {
-      stmt.run(
-        draw.issue,
-        draw.date || "",
-        draw.red[0],
-        draw.red[1],
-        draw.red[2],
-        draw.red[3],
-        draw.red[4],
-        draw.red[5],
-        draw.blue,
-        draw.sales || "",
-        draw.poolMoney || "",
-        draw.source || "",
-        now
-      );
-    });
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
-  return draws.length;
-}
-
-function readDraws(limit = 240) {
-  const stmt = getDb().prepare(`
-    SELECT *
-    FROM draws
-    ORDER BY CAST(issue AS INTEGER) DESC
-    LIMIT ?
-  `);
-  return stmt.all(limit).map(rowToDraw);
-}
-
-function countRecords() {
-  return getDb().prepare("SELECT COUNT(*) AS total FROM records").get().total;
-}
-
-function appendRecords(records) {
-  if (!records.length) return [];
-  const database = getDb();
-  const exists = database.prepare(`
-    SELECT id
-    FROM records
-    WHERE type = ? AND ticket_key = ? AND base_issue = ? AND strategy = ? AND source_name = ?
-    LIMIT 1
-  `);
-  const insert = database.prepare(`
-    INSERT INTO records (
-      id, type, ticket_key, reds_json, blue, strategy, source_name, source_url,
-      base_issue, base_date, reason, score, created_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const added = [];
-
-  database.exec("BEGIN");
-  try {
-    for (const record of records) {
-      const duplicate = exists.get(
-        record.type,
-        record.key,
-        record.baseIssue,
-        record.strategy,
-        record.sourceName
-      );
-      if (duplicate) continue;
-      insert.run(
-        record.id,
-        record.type,
-        record.key,
-        JSON.stringify(record.reds),
-        record.blue,
-        record.strategy,
-        record.sourceName,
-        record.sourceUrl,
-        record.baseIssue,
-        record.baseDate,
-        record.reason,
-        record.score,
-        record.createdAt
-      );
-      added.push(record);
+  return withClient(async (client) => {
+    await client.query("BEGIN");
+    try {
+      for (const draw of draws) {
+        await client.query(
+          `
+            INSERT INTO draws (
+              issue, draw_date, red1, red2, red3, red4, red5, red6, blue,
+              sales, pool_money, source, fetched_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ON CONFLICT(issue) DO UPDATE SET
+              draw_date = EXCLUDED.draw_date,
+              red1 = EXCLUDED.red1,
+              red2 = EXCLUDED.red2,
+              red3 = EXCLUDED.red3,
+              red4 = EXCLUDED.red4,
+              red5 = EXCLUDED.red5,
+              red6 = EXCLUDED.red6,
+              blue = EXCLUDED.blue,
+              sales = EXCLUDED.sales,
+              pool_money = EXCLUDED.pool_money,
+              source = EXCLUDED.source,
+              fetched_at = EXCLUDED.fetched_at
+          `,
+          [
+            draw.issue,
+            draw.date || "",
+            draw.red[0],
+            draw.red[1],
+            draw.red[2],
+            draw.red[3],
+            draw.red[4],
+            draw.red[5],
+            draw.blue,
+            draw.sales || "",
+            draw.poolMoney || "",
+            draw.source || "",
+            now
+          ]
+        );
+      }
+      await client.query("COMMIT");
+      return draws.length;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
     }
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
-
-  return added;
+  });
 }
 
-function readRecords(limit = 3000) {
-  const stmt = getDb().prepare(`
-    SELECT *
-    FROM records
-    ORDER BY datetime(created_at) DESC
-    LIMIT ?
-  `);
-  return stmt.all(limit).map(rowToRecord);
+async function readDraws(limit = 240) {
+  const result = await query(
+    `
+      SELECT *
+      FROM draws
+      ORDER BY issue::BIGINT DESC
+      LIMIT $1
+    `,
+    [limit]
+  );
+  return result.rows.map(rowToDraw);
 }
 
-function upsertIndicators(indicators) {
+async function countRecords(userId = DEFAULT_USER_ID) {
+  const result = await query("SELECT COUNT(*)::INT AS total FROM records WHERE user_id = $1", [userId]);
+  return result.rows[0]?.total || 0;
+}
+
+async function appendRecords(records, userId = DEFAULT_USER_ID) {
+  if (!records.length) return [];
+  return withClient(async (client) => {
+    const added = [];
+    await client.query("BEGIN");
+    try {
+      for (const record of records) {
+        const result = await client.query(
+          `
+            INSERT INTO records (
+              id, user_id, type, ticket_key, reds_json, blue, strategy, source_name, source_url,
+              base_issue, base_date, reason, score, pinned_at, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, '')::timestamptz, $15)
+            ON CONFLICT(user_id, type, ticket_key, base_issue, strategy, source_name) DO NOTHING
+            RETURNING *
+          `,
+          [
+            record.id,
+            userId,
+            record.type,
+            record.key,
+            JSON.stringify(record.reds),
+            record.blue,
+            record.strategy,
+            record.sourceName,
+            record.sourceUrl,
+            record.baseIssue,
+            record.baseDate,
+            record.reason,
+            record.score,
+            record.pinnedAt || "",
+            record.createdAt
+          ]
+        );
+        if (result.rows[0]) added.push(rowToRecord(result.rows[0]));
+      }
+      await client.query("COMMIT");
+      return added;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  });
+}
+
+async function readRecords(limit = 3000, userId = DEFAULT_USER_ID) {
+  const result = await query(
+    `
+      SELECT *
+      FROM records
+      WHERE user_id = $1
+      ORDER BY pinned_at DESC NULLS LAST, created_at DESC
+      LIMIT $2
+    `,
+    [userId, limit]
+  );
+  return result.rows.map(rowToRecord);
+}
+
+async function deleteRecord(id, userId = DEFAULT_USER_ID) {
+  const result = await query("DELETE FROM records WHERE id = $1 AND user_id = $2", [id, userId]);
+  return result.rowCount || 0;
+}
+
+async function setRecordPinned(id, pinned, userId = DEFAULT_USER_ID) {
+  const pinnedAt = pinned ? new Date().toISOString() : "";
+  const result = await query(
+    "UPDATE records SET pinned_at = NULLIF($1, '')::timestamptz WHERE id = $2 AND user_id = $3",
+    [pinnedAt, id, userId]
+  );
+  return { changed: result.rowCount || 0, pinnedAt };
+}
+
+async function upsertIndicators(indicators) {
   if (!indicators.length) return 0;
-  const database = getDb();
   const now = new Date().toISOString();
-  const stmt = database.prepare(`
-    INSERT INTO draw_indicators (
-      issue, draw_date, sum_value, span_value, odd_count, even_count, big_count,
-      small_count, prime_count, composite_count, zone_low, zone_mid, zone_high,
-      mod0, mod1, mod2, consecutive_count, ac_value, repeat_count, blue_odd,
-      hot_count, warm_count, cold_count, hot_ratio, cold_ratio, sum_type,
-      parity_type, size_type, zone_type, hot_cold_type, type_label,
-      regression_sum, regression_residual, updated_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(issue) DO UPDATE SET
-      draw_date = excluded.draw_date,
-      sum_value = excluded.sum_value,
-      span_value = excluded.span_value,
-      odd_count = excluded.odd_count,
-      even_count = excluded.even_count,
-      big_count = excluded.big_count,
-      small_count = excluded.small_count,
-      prime_count = excluded.prime_count,
-      composite_count = excluded.composite_count,
-      zone_low = excluded.zone_low,
-      zone_mid = excluded.zone_mid,
-      zone_high = excluded.zone_high,
-      mod0 = excluded.mod0,
-      mod1 = excluded.mod1,
-      mod2 = excluded.mod2,
-      consecutive_count = excluded.consecutive_count,
-      ac_value = excluded.ac_value,
-      repeat_count = excluded.repeat_count,
-      blue_odd = excluded.blue_odd,
-      hot_count = excluded.hot_count,
-      warm_count = excluded.warm_count,
-      cold_count = excluded.cold_count,
-      hot_ratio = excluded.hot_ratio,
-      cold_ratio = excluded.cold_ratio,
-      sum_type = excluded.sum_type,
-      parity_type = excluded.parity_type,
-      size_type = excluded.size_type,
-      zone_type = excluded.zone_type,
-      hot_cold_type = excluded.hot_cold_type,
-      type_label = excluded.type_label,
-      regression_sum = excluded.regression_sum,
-      regression_residual = excluded.regression_residual,
-      updated_at = excluded.updated_at
-  `);
-
-  database.exec("BEGIN");
-  try {
-    indicators.forEach((item) => {
-      stmt.run(
-        item.issue,
-        item.date || "",
-        item.sum,
-        item.span,
-        item.odd,
-        item.even,
-        item.big,
-        item.small,
-        item.prime,
-        item.composite,
-        item.zones[0],
-        item.zones[1],
-        item.zones[2],
-        item.mod012[0],
-        item.mod012[1],
-        item.mod012[2],
-        item.consecutive,
-        item.ac,
-        item.repeat,
-        item.blueOdd,
-        item.hotCount,
-        item.warmCount,
-        item.coldCount,
-        item.hotRatio,
-        item.coldRatio,
-        item.sumType,
-        item.parityType,
-        item.sizeType,
-        item.zoneType,
-        item.hotColdType,
-        item.typeLabel,
-        item.regressionSum,
-        item.regressionResidual,
-        now
-      );
-    });
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
-  return indicators.length;
+  return withClient(async (client) => {
+    await client.query("BEGIN");
+    try {
+      for (const item of indicators) {
+        await client.query(
+          `
+            INSERT INTO draw_indicators (
+              issue, draw_date, sum_value, span_value, odd_count, even_count, big_count,
+              small_count, prime_count, composite_count, zone_low, zone_mid, zone_high,
+              mod0, mod1, mod2, consecutive_count, ac_value, repeat_count, blue_odd,
+              hot_count, warm_count, cold_count, hot_ratio, cold_ratio, sum_type,
+              parity_type, size_type, zone_type, hot_cold_type, type_label,
+              regression_sum, regression_residual, updated_at
+            )
+            VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+              $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+              $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
+              $31, $32, $33, $34
+            )
+            ON CONFLICT(issue) DO UPDATE SET
+              draw_date = EXCLUDED.draw_date,
+              sum_value = EXCLUDED.sum_value,
+              span_value = EXCLUDED.span_value,
+              odd_count = EXCLUDED.odd_count,
+              even_count = EXCLUDED.even_count,
+              big_count = EXCLUDED.big_count,
+              small_count = EXCLUDED.small_count,
+              prime_count = EXCLUDED.prime_count,
+              composite_count = EXCLUDED.composite_count,
+              zone_low = EXCLUDED.zone_low,
+              zone_mid = EXCLUDED.zone_mid,
+              zone_high = EXCLUDED.zone_high,
+              mod0 = EXCLUDED.mod0,
+              mod1 = EXCLUDED.mod1,
+              mod2 = EXCLUDED.mod2,
+              consecutive_count = EXCLUDED.consecutive_count,
+              ac_value = EXCLUDED.ac_value,
+              repeat_count = EXCLUDED.repeat_count,
+              blue_odd = EXCLUDED.blue_odd,
+              hot_count = EXCLUDED.hot_count,
+              warm_count = EXCLUDED.warm_count,
+              cold_count = EXCLUDED.cold_count,
+              hot_ratio = EXCLUDED.hot_ratio,
+              cold_ratio = EXCLUDED.cold_ratio,
+              sum_type = EXCLUDED.sum_type,
+              parity_type = EXCLUDED.parity_type,
+              size_type = EXCLUDED.size_type,
+              zone_type = EXCLUDED.zone_type,
+              hot_cold_type = EXCLUDED.hot_cold_type,
+              type_label = EXCLUDED.type_label,
+              regression_sum = EXCLUDED.regression_sum,
+              regression_residual = EXCLUDED.regression_residual,
+              updated_at = EXCLUDED.updated_at
+          `,
+          [
+            item.issue,
+            item.date || "",
+            item.sum,
+            item.span,
+            item.odd,
+            item.even,
+            item.big,
+            item.small,
+            item.prime,
+            item.composite,
+            item.zones[0],
+            item.zones[1],
+            item.zones[2],
+            item.mod012[0],
+            item.mod012[1],
+            item.mod012[2],
+            item.consecutive,
+            item.ac,
+            item.repeat,
+            item.blueOdd,
+            item.hotCount,
+            item.warmCount,
+            item.coldCount,
+            item.hotRatio,
+            item.coldRatio,
+            item.sumType,
+            item.parityType,
+            item.sizeType,
+            item.zoneType,
+            item.hotColdType,
+            item.typeLabel,
+            item.regressionSum,
+            item.regressionResidual,
+            now
+          ]
+        );
+      }
+      await client.query("COMMIT");
+      return indicators.length;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  });
 }
 
-function readIndicators(limit = 240) {
-  const stmt = getDb().prepare(`
-    SELECT *
-    FROM draw_indicators
-    ORDER BY CAST(issue AS INTEGER) DESC
-    LIMIT ?
-  `);
-  return stmt.all(limit).map(rowToIndicator);
+async function readIndicators(limit = 240) {
+  const result = await query(
+    `
+      SELECT *
+      FROM draw_indicators
+      ORDER BY issue::BIGINT DESC
+      LIMIT $1
+    `,
+    [limit]
+  );
+  return result.rows.map(rowToIndicator);
 }
 
-function readIndicatorIssues() {
-  return new Set(getDb().prepare("SELECT issue FROM draw_indicators").all().map((row) => row.issue));
+async function readIndicatorIssues() {
+  const result = await query("SELECT issue FROM draw_indicators");
+  return new Set(result.rows.map((row) => row.issue));
 }
 
 function databasePath() {
-  return path.resolve(SQLITE_FILE);
+  return DATABASE_URL ? DATABASE_URL.replace(/:\/\/([^:@]+):([^@]+)@/, "://$1:***@") : "";
 }
 
-function closeDb() {
-  if (!db) return;
-  try {
-    // SQLite WAL 模式下 close 前做一次 checkpoint，避免遗留 WAL 文件被认为损坏
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-  } catch {}
-  try {
-    db.close();
-  } catch {}
-  db = null;
+async function closeDb() {
+  if (!pool) return;
+  await pool.end();
+  pool = null;
+  migrationPromise = null;
 }
 
 module.exports = {
@@ -422,11 +540,15 @@ module.exports = {
   closeDb,
   countRecords,
   databasePath,
-  getDb,
+  deleteRecord,
+  ensureDatabaseReady: migrate,
   readDraws,
   readIndicatorIssues,
   readIndicators,
   readRecords,
+  query,
+  setRecordPinned,
   upsertDraws,
-  upsertIndicators
+  upsertIndicators,
+  withClient
 };

@@ -8,6 +8,14 @@ const CHECK_FILES = [
   "data/records.json",
   "data/community-sources.json",
   "data/ssq-sample.json",
+  "miniprogram/app.js",
+  "miniprogram/app.json",
+  "miniprogram/project.config.json",
+  "miniprogram/sitemap.json",
+  "miniprogram/pages/index/index.js",
+  "miniprogram/pages/index/index.json",
+  "miniprogram/pages/picks/index.js",
+  "miniprogram/pages/picks/index.json",
   "start.sh",
   "start.bat"
 ];
@@ -48,13 +56,13 @@ async function checkLauncherScripts() {
   if (shellScript.includes("\r\n")) {
     throw new Error("start.sh must use LF line endings for Ubuntu compatibility");
   }
-  if (!shellScript.includes("npm start")) {
-    throw new Error("start.sh must run npm start");
+  if (!shellScript.includes("node server.js")) {
+    throw new Error("start.sh must run node server.js");
   }
 
   const batchScript = await fs.promises.readFile("start.bat", "utf8");
-  if (!/npm start/i.test(batchScript)) {
-    throw new Error("start.bat must run npm start");
+  if (!/node\s+server\.js/i.test(batchScript)) {
+    throw new Error("start.bat must run node server.js");
   }
 }
 
@@ -69,6 +77,12 @@ async function waitForServer(port, timeoutMs = 5000) {
     }
   }
   throw new Error("server did not become healthy in time");
+}
+
+function requireEnv(name) {
+  if (!process.env[name]) {
+    throw new Error(`${name} is required for smoke tests`);
+  }
 }
 
 async function checkEndpoint(port, path, validate) {
@@ -106,11 +120,13 @@ async function withServer(run) {
 }
 
 async function main() {
+  requireEnv("DATABASE_URL");
   const jsFiles = Array.from(
     new Set([
       ...CHECK_FILES.filter((file) => file.endsWith(".js")),
       ...walkFiles("src/server", (file) => file.endsWith(".js")),
-      ...walkFiles("public/js", (file) => file.endsWith(".js"))
+      ...walkFiles("public/js", (file) => file.endsWith(".js")),
+      ...walkFiles("miniprogram", (file) => file.endsWith(".js"))
     ])
   );
   await Promise.all(jsFiles.map(checkSyntax));
@@ -139,6 +155,18 @@ async function main() {
         throw new Error("metrics endpoint returned an invalid payload");
       }
     });
+    await checkEndpoint(port, "/api/mobile/home?limit=30", (text) => {
+      const payload = JSON.parse(text);
+      if (!payload.ok || !payload.latestDraw || !payload.overview) {
+        throw new Error("mobile home endpoint returned an invalid payload");
+      }
+    });
+    await checkEndpoint(port, "/api/mobile/picks?limit=30", (text) => {
+      const payload = JSON.parse(text);
+      if (!payload.ok || !payload.summary || !Array.isArray(payload.records)) {
+        throw new Error("mobile picks endpoint returned an invalid payload");
+      }
+    });
     const completion = await fetch(`http://127.0.0.1:${port}/api/complete-ticket`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -148,6 +176,39 @@ async function main() {
     const completionPayload = await completion.json();
     if (!completionPayload.ok || completionPayload.ticket?.reds?.length !== 6 || !completionPayload.ticket?.blue) {
       throw new Error("complete-ticket endpoint returned an invalid ticket");
+    }
+    const testRecordStamp = Date.now();
+    const testRecordId = `smoke-${testRecordStamp}`;
+    const saveRecord = await fetch(`http://127.0.0.1:${port}/api/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        record: {
+          id: testRecordId,
+          type: "favorite",
+          reds: ["01", "02", "03", "04", "05", "06"],
+          blue: "07",
+          strategy: "balanced",
+          baseIssue: `9${testRecordStamp}`
+        }
+      })
+    });
+    if (!saveRecord.ok) throw new Error(`record save returned HTTP ${saveRecord.status}`);
+    const pinRecord = await fetch(`http://127.0.0.1:${port}/api/records`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: testRecordId, pinned: true })
+    });
+    const pinPayload = await pinRecord.json();
+    if (!pinRecord.ok || !pinPayload.ok || !pinPayload.pinnedAt) {
+      throw new Error("record pin endpoint returned an invalid payload");
+    }
+    const deleteSavedRecord = await fetch(`http://127.0.0.1:${port}/api/records?id=${encodeURIComponent(testRecordId)}`, {
+      method: "DELETE"
+    });
+    const deletePayload = await deleteSavedRecord.json();
+    if (!deleteSavedRecord.ok || !deletePayload.ok || deletePayload.deleted !== 1) {
+      throw new Error("record delete endpoint returned an invalid payload");
     }
     await checkEndpoint(port, "/api/community?urls=http%3A%2F%2F127.0.0.1%3A5199%2F", (text) => {
       const payload = JSON.parse(text);

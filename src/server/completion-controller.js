@@ -191,7 +191,7 @@ async function handleCompleteTicket(req, res) {
   const blue = chooseBlue(selectedBlue, blueWeights);
   const reds = completeReds(selectedReds, redWeights, blue);
   const shape = getDrawShape({ red: reds, blue });
-  const indicators = readIndicators(240);
+  const indicators = await readIndicators(240);
   const position = buildPosition({ reds, blue }, shape, indicators, redStats);
 
   sendJson(res, 200, {

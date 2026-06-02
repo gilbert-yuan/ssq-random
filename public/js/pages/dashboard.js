@@ -73,6 +73,16 @@ function setBusy(isBusy) {
   });
 }
 
+function syncAuth(payload) {
+  if (typeof payload?.authenticated !== "boolean") return;
+  state.auth.authenticated = payload.authenticated;
+  state.auth.user = payload.user || null;
+}
+
+function isAuthRequired(error) {
+  return error?.status === 401 || error?.code === "AUTH_REQUIRED";
+}
+
 function latestBase() {
   const latest = state.draws[0] || {};
   return {

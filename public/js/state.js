@@ -1,4 +1,8 @@
 export const state = {
+  auth: {
+    authenticated: null,
+    user: null
+  },
   draws: [],
   analysis: null,
   metrics: null,

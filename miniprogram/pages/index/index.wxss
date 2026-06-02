@@ -1,0 +1,284 @@
+.page {
+  padding: 28rpx 24rpx 44rpx;
+}
+
+.hero-card {
+  margin-top: 0;
+  padding: 28rpx;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(255, 248, 220, 0.88));
+}
+
+.hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.hero-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-eyebrow {
+  display: block;
+  color: #4d5b69;
+  font-size: 20rpx;
+  font-weight: 800;
+  letter-spacing: 4rpx;
+}
+
+.hero-title {
+  display: block;
+  margin-top: 10rpx;
+  color: #23303d;
+  font-size: 52rpx;
+  font-weight: 800;
+  line-height: 1.06;
+}
+
+.hero-subtitle {
+  display: block;
+  margin-top: 12rpx;
+  color: #244ba8;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.hero-description {
+  display: block;
+  margin-top: 16rpx;
+  color: #4d5b69;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.hero-button {
+  min-width: 176rpx;
+  padding: 0 26rpx;
+}
+
+.hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 22rpx;
+}
+
+.announce {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 20rpx;
+  padding: 16rpx 18rpx;
+  border: 4rpx solid #23303d;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 6rpx 6rpx 0 #23303d;
+}
+
+.announce-tag {
+  flex-shrink: 0;
+}
+
+.announce-swiper {
+  flex: 1;
+  height: 36rpx;
+}
+
+.announce-item {
+  height: 36rpx;
+  display: flex;
+  align-items: center;
+}
+
+.announce-text {
+  color: #23303d;
+  font-size: 24rpx;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summary-panel {
+  margin-top: 20rpx;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.summary-item {
+  min-width: 0;
+  padding: 20rpx 14rpx;
+  border: 4rpx solid #23303d;
+  border-radius: 24rpx;
+  box-shadow: 6rpx 6rpx 0 #23303d;
+  text-align: center;
+}
+
+.summary-yellow {
+  background: rgba(255, 239, 138, 0.82);
+  transform: rotate(-1deg);
+}
+
+.summary-blue {
+  background: rgba(219, 234, 254, 0.88);
+  transform: rotate(0.9deg);
+}
+
+.summary-pink {
+  background: rgba(255, 214, 231, 0.86);
+  transform: rotate(-0.6deg);
+}
+
+.summary-white {
+  background: rgba(255, 255, 255, 0.96);
+  transform: rotate(0.5deg);
+}
+
+.summary-value {
+  display: block;
+  color: #23303d;
+  font-size: 34rpx;
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.amount {
+  font-size: 28rpx;
+}
+
+.summary-label {
+  display: block;
+  margin-top: 8rpx;
+  color: #4d5b69;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.summary-note {
+  display: block;
+  margin-top: 20rpx;
+  color: #4d5b69;
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.draw-meta {
+  margin-top: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  color: #4d5b69;
+  font-size: 24rpx;
+}
+
+.draw-stats {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.stat-chip {
+  flex: 1;
+  min-width: 0;
+  padding: 16rpx 18rpx;
+  border: 4rpx solid #23303d;
+  border-radius: 22rpx;
+  box-shadow: 4rpx 4rpx 0 #23303d;
+}
+
+.stat-yellow {
+  background: rgba(255, 239, 138, 0.7);
+}
+
+.stat-blue {
+  background: rgba(219, 234, 254, 0.78);
+}
+
+.stat-pink {
+  background: rgba(255, 214, 231, 0.78);
+}
+
+.stat-chip-label {
+  display: block;
+  color: #4d5b69;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.stat-chip-value {
+  display: block;
+  margin-top: 8rpx;
+  color: #23303d;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.trend-card {
+  min-width: 0;
+  padding: 18rpx 16rpx;
+  border: 4rpx solid #23303d;
+  border-radius: 22rpx;
+  box-shadow: 5rpx 5rpx 0 #23303d;
+}
+
+.trend-card-0 {
+  background: rgba(255, 239, 138, 0.72);
+  transform: rotate(-0.8deg);
+}
+
+.trend-card-1 {
+  background: rgba(219, 234, 254, 0.76);
+  transform: rotate(0.7deg);
+}
+
+.trend-card-2 {
+  background: rgba(255, 214, 231, 0.72);
+  transform: rotate(-0.4deg);
+}
+
+.trend-title {
+  display: block;
+  color: #4d5b69;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.trend-value {
+  display: block;
+  margin-top: 10rpx;
+  color: #23303d;
+  font-size: 24rpx;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.ticket-card {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 4rpx dashed rgba(35, 48, 61, 0.24);
+  border-radius: 24rpx;
+  background: rgba(255, 254, 245, 0.84);
+}
+
+.ticket-reason {
+  display: block;
+  margin-top: 16rpx;
+  color: #4d5b69;
+  font-size: 24rpx;
+  line-height: 1.65;
+}

@@ -11,6 +11,11 @@ const SQLITE_FILE = path.join(DATA_DIR, "ssq.sqlite");
 
 const PORT = Number(process.env.PORT || 5173);
 const HOST = process.env.HOST || "127.0.0.1";
+const DATABASE_URL = process.env.DATABASE_URL || "";
+const DB_SSL = process.env.DB_SSL === "1";
+const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || "default";
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "ssq_session";
+const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 30);
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -33,6 +38,9 @@ module.exports = {
   CACHE_DIR,
   COMMUNITY_SOURCES_FILE,
   DATA_DIR,
+  DATABASE_URL,
+  DB_SSL,
+  DEFAULT_USER_ID,
   HOST,
   LEGACY_RECORDS_FILE,
   MIME_TYPES,
@@ -40,6 +48,8 @@ module.exports = {
   PUBLIC_DIR,
   REQUEST_HEADERS,
   ROOT_DIR,
+  SESSION_COOKIE_NAME,
+  SESSION_TTL_DAYS,
   SAMPLE_FILE,
   SQLITE_FILE
 };

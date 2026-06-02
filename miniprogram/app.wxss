@@ -1,0 +1,208 @@
+page {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 10rpx 10rpx, rgba(35, 48, 61, 0.08) 2rpx, transparent 2rpx),
+    linear-gradient(90deg, transparent 0 54rpx, rgba(96, 165, 250, 0.16) 54rpx 58rpx, transparent 58rpx),
+    linear-gradient(180deg, #fff8dc 0%, #e8f4f8 100%);
+  background-size: 24rpx 24rpx, auto, auto;
+  color: #23303d;
+  font-size: 28rpx;
+}
+
+view,
+text,
+button,
+picker,
+swiper,
+swiper-item,
+scroll-view {
+  box-sizing: border-box;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  line-height: normal;
+  background: transparent;
+}
+
+button::after {
+  border: 0;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  margin-top: 20rpx;
+  padding: 26rpx;
+  border: 4rpx solid #23303d;
+  border-radius: 32rpx;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 6rpx 6rpx 0 #23303d;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 28rpx;
+  width: 120rpx;
+  height: 16rpx;
+  border-radius: 0 0 14rpx 14rpx;
+  background: rgba(255, 214, 231, 0.94);
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.panel-title {
+  color: #23303d;
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.panel-meta,
+.panel-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 52rpx;
+  padding: 0 18rpx;
+  border: 3rpx solid rgba(35, 48, 61, 0.16);
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.78);
+  color: #4d5b69;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.badge-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52rpx;
+  padding: 0 18rpx;
+  border: 3rpx solid #23303d;
+  border-radius: 999rpx;
+  box-shadow: 4rpx 4rpx 0 #23303d;
+  color: #23303d;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.badge-yellow {
+  background: #ffef8a;
+}
+
+.badge-blue {
+  background: #dbeafe;
+}
+
+.badge-pink {
+  background: #ffd6e7;
+}
+
+.badge-green {
+  background: #d1fae5;
+}
+
+.badge-orange {
+  background: #ffedd5;
+}
+
+.sketch-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 84rpx;
+  padding: 0 24rpx;
+  border: 4rpx solid #23303d;
+  border-radius: 24rpx;
+  background: #fffef5;
+  color: #23303d;
+  box-shadow: 6rpx 6rpx 0 #23303d;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.sketch-button.primary {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.sketch-button.soft {
+  background: #dbeafe;
+}
+
+.picker-chip {
+  min-width: 170rpx;
+  min-height: 56rpx;
+  padding: 12rpx 18rpx;
+  border: 3rpx solid #23303d;
+  border-radius: 999rpx;
+  background: #dbeafe;
+  color: #244ba8;
+  box-shadow: 4rpx 4rpx 0 #23303d;
+  text-align: center;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.compact-chip {
+  min-width: 150rpx;
+}
+
+.ball-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.ball {
+  width: 72rpx;
+  height: 72rpx;
+  border: 3rpx solid #23303d;
+  border-radius: 36rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 4rpx 4rpx 0 rgba(35, 48, 61, 0.82);
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.ball-small {
+  width: 58rpx;
+  height: 58rpx;
+  border-radius: 29rpx;
+  font-size: 22rpx;
+}
+
+.red {
+  background: linear-gradient(180deg, #ff8b8b, #ef4444);
+}
+
+.blue {
+  background: linear-gradient(180deg, #84baff, #3b82f6);
+}
+
+.action-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.action {
+  flex: 1;
+}
+
+.empty-state {
+  margin-top: 16rpx;
+  color: #4d5b69;
+  font-size: 24rpx;
+}

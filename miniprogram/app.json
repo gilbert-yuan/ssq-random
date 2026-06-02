@@ -1,0 +1,31 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/picks/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "双色球助手",
+    "navigationBarBackgroundColor": "#fff8dc",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#fff8dc",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#4d5b69",
+    "selectedColor": "#3b82f6",
+    "backgroundColor": "#fffef5",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/picks/index",
+        "text": "我的选号"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

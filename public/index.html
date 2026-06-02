@@ -8,222 +8,235 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">MYERP · 双色球</p>
+      <header class="topbar panel hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">MYERP LOTTO LAB</p>
           <h1>双色球分析台</h1>
+          <p class="hero-description">把历史走势、社区共振和自选补全整理成一张更轻松、更像手账白板的选号工作台。</p>
+          <div class="hero-tags">
+            <span class="hero-tag yellow">历史走势</span>
+            <span class="hero-tag blue">社区共振</span>
+            <span class="hero-tag pink">自选补全</span>
+            <span class="hero-tag green">命中闭环</span>
+          </div>
         </div>
-        <div class="actions">
+
+        <div class="control-card">
+          <div class="control-note">本地分析工作区</div>
           <label class="field compact">
-            <span>期数</span>
+            <span>分析期数</span>
             <input id="limitInput" type="number" min="30" max="1000" value="240" />
           </label>
-          <button id="fetchDrawsBtn" class="primary" type="button">一键获取</button>
-          <button id="generateBtn" type="button">生成建议号</button>
-          <button id="communityBtn" type="button">拉取大神推荐</button>
-          <button id="exportBtn" type="button">导出 CSV</button>
+          <div class="actions">
+            <button id="fetchDrawsBtn" class="primary" type="button">一键获取</button>
+            <button id="generateBtn" type="button">生成建议号</button>
+            <button id="communityBtn" type="button">抓取大神推荐</button>
+            <button id="exportBtn" type="button">导出 CSV</button>
+          </div>
         </div>
       </header>
 
-      <main>
-        <section class="status-band" id="statusBand">
-          <div>
-            <span class="status-dot"></span>
-            <span id="statusText">准备就绪</span>
-          </div>
-          <span id="sourceText">等待获取开奖数据</span>
-        </section>
+      <section class="status-band" id="statusBand">
+        <div>
+          <span class="status-dot"></span>
+          <span id="statusText">准备就绪</span>
+        </div>
+        <span id="sourceText">等待获取开奖数据</span>
+      </section>
 
-        <section class="workspace-grid">
-          <aside class="left-rail">
-            <div class="panel latest-panel">
-              <div class="panel-title">
-                <h2>最新开奖</h2>
-                <span id="latestIssue">--</span>
-              </div>
-              <div id="latestBalls" class="ball-row muted">暂无数据</div>
-              <dl class="meta-list" id="latestMeta"></dl>
+      <main class="workspace-grid">
+        <aside class="left-rail">
+          <section class="panel latest-panel">
+            <div class="panel-title">
+              <h2>最新开奖</h2>
+              <span id="latestIssue">--</span>
             </div>
+            <div id="latestBalls" class="ball-row muted">暂无数据</div>
+            <dl class="meta-list" id="latestMeta"></dl>
+          </section>
 
-            <div class="panel">
-              <div class="panel-title">
-                <h2>趋势建议</h2>
-                <span id="confidenceText">--</span>
-              </div>
-              <ul class="advice-list" id="adviceList"></ul>
+          <section class="panel">
+            <div class="panel-title">
+              <h2>趋势建议</h2>
+              <span id="confidenceText">--</span>
             </div>
+            <ul class="advice-list" id="adviceList"></ul>
+          </section>
 
-            <div class="panel">
-              <div class="panel-title">
-                <h2>社区来源</h2>
-                <span id="communityCount">0 条</span>
-              </div>
-              <textarea id="sourceUrls" spellcheck="false"></textarea>
-              <div id="communityResults" class="community-list muted">尚未拉取</div>
+          <section class="panel">
+            <div class="panel-title">
+              <h2>社区来源</h2>
+              <span id="communityCount">0 条</span>
             </div>
-          </aside>
+            <textarea id="sourceUrls" spellcheck="false"></textarea>
+            <div id="communityResults" class="community-list muted">尚未抓取</div>
+          </section>
+        </aside>
 
-          <section class="main-stage">
+        <section class="main-stage">
+          <section class="panel summary-board">
+            <div class="panel-title">
+              <h2>本期速览</h2>
+              <span>像便签一样看关键指标</span>
+            </div>
             <div class="summary-grid" id="summaryGrid"></div>
+          </section>
 
-            <div class="panel numbers-panel">
+          <section class="panel numbers-panel">
+            <div class="panel-title">
+              <h2>一键建议号</h2>
+              <div class="toolbar">
+                <select id="strategySelect" aria-label="选号策略">
+                  <option value="balanced">均衡趋势</option>
+                  <option value="hot">热号追踪</option>
+                  <option value="cold">冷号补位</option>
+                  <option value="community">社区共振</option>
+                  <option value="blue">蓝球重点</option>
+                </select>
+                <span id="ticketMode">均衡趋势</span>
+              </div>
+            </div>
+            <div id="tickets" class="tickets empty-state">点击“生成建议号”</div>
+          </section>
+
+          <section class="panel manual-panel">
+            <div class="panel-title">
+              <h2>自选补全</h2>
+              <div class="toolbar">
+                <select id="manualStrategySelect" aria-label="自选补全规则">
+                  <option value="balanced">均衡趋势</option>
+                  <option value="hot">热号追踪</option>
+                  <option value="cold">冷号补位</option>
+                  <option value="community">社区共振</option>
+                  <option value="blue">蓝球重点</option>
+                </select>
+                <button id="completePickBtn" type="button">补全</button>
+                <button id="clearPickBtn" type="button">清空</button>
+              </div>
+            </div>
+            <div class="manual-grid">
+              <div>
+                <div class="mini-title">红球</div>
+                <div id="manualRedGrid" class="number-grid red"></div>
+              </div>
+              <div>
+                <div class="mini-title">蓝球</div>
+                <div id="manualBlueGrid" class="number-grid blue"></div>
+              </div>
+            </div>
+            <div class="manual-result-grid">
+              <div id="manualPickResult" class="tickets compact-list muted">选择部分红球或蓝球后会自动补全。</div>
+              <div id="manualPositionList" class="position-list muted">暂无指标定位</div>
+            </div>
+          </section>
+
+          <section class="analysis-grid">
+            <div class="panel">
               <div class="panel-title">
-                <h2>一键建议号</h2>
-                <div class="toolbar">
-                  <select id="strategySelect" aria-label="选号策略">
-                    <option value="balanced">均衡趋势</option>
-                    <option value="hot">热号追踪</option>
-                    <option value="cold">冷号补位</option>
-                    <option value="community">社区共振</option>
-                    <option value="blue">蓝球重点</option>
-                  </select>
-                  <span id="ticketMode">均衡趋势</span>
-                </div>
+                <h2>策略回测</h2>
+                <span id="backtestScope">待生成</span>
               </div>
-              <div id="tickets" class="tickets empty-state">点击“生成建议号”</div>
-            </div>
-
-            <div class="panel manual-panel">
-              <div class="panel-title">
-                <h2>自选补全</h2>
-                <div class="toolbar">
-                  <select id="manualStrategySelect" aria-label="自选补全规则">
-                    <option value="balanced">均衡趋势</option>
-                    <option value="hot">热号追踪</option>
-                    <option value="cold">冷号补位</option>
-                    <option value="community">社区共振</option>
-                    <option value="blue">蓝球重点</option>
-                  </select>
-                  <button id="completePickBtn" type="button">补全</button>
-                  <button id="clearPickBtn" type="button">清空</button>
-                </div>
-              </div>
-              <div class="manual-grid">
-                <div>
-                  <div class="mini-title">红球</div>
-                  <div id="manualRedGrid" class="number-grid red"></div>
-                </div>
-                <div>
-                  <div class="mini-title">蓝球</div>
-                  <div id="manualBlueGrid" class="number-grid blue"></div>
-                </div>
-              </div>
-              <div class="manual-result-grid">
-                <div id="manualPickResult" class="tickets compact-list muted">选择部分红球或蓝球后会自动补全。</div>
-                <div id="manualPositionList" class="position-list muted">暂无指标定位</div>
-              </div>
-            </div>
-
-            <div class="analysis-grid">
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>策略回测</h2>
-                  <span id="backtestScope">待生成</span>
-                </div>
-                <div id="backtestPanel" class="backtest-grid muted">暂无回测</div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>收藏号码</h2>
-                  <span id="favoriteCount">0 注</span>
-                </div>
-                <div id="favoritesPanel" class="tickets compact-list muted">暂无收藏</div>
-              </div>
-            </div>
-
-            <div class="panel indicator-panel">
-              <div class="panel-title">
-                <h2>指标回测走势</h2>
-                <span id="indicatorScope">待计算</span>
-              </div>
-              <div id="indicatorBacktest" class="backtest-grid muted">暂无指标回测</div>
-              <div class="line-chart-grid">
-                <div class="line-chart-card">
-                  <div class="mini-title">和值与回归线</div>
-                  <div id="sumLineChart" class="line-chart"></div>
-                </div>
-                <div class="line-chart-card">
-                  <div class="mini-title">冷热占比</div>
-                  <div id="ratioLineChart" class="line-chart"></div>
-                </div>
-                <div class="line-chart-card">
-                  <div class="mini-title">奇偶走势</div>
-                  <div id="oddLineChart" class="line-chart"></div>
-                </div>
-              </div>
-              <div id="classificationList" class="classification-list"></div>
-            </div>
-
-            <div class="analysis-grid">
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>命中闭环</h2>
-                  <span id="recordScope">待核对</span>
-                </div>
-                <div id="recordSummary" class="backtest-grid muted">暂无记录</div>
-                <div id="recordList" class="record-list muted">暂无历史推荐</div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>大神战绩</h2>
-                  <span id="performanceScope">待积累</span>
-                </div>
-                <div id="performanceList" class="score-list muted">暂无战绩</div>
-              </div>
-            </div>
-
-            <div class="analysis-grid">
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>红球分布</h2>
-                  <span>01-33</span>
-                </div>
-                <div id="redChart" class="bar-chart"></div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>蓝球分布</h2>
-                  <span>01-16</span>
-                </div>
-                <div id="blueChart" class="bar-chart blue"></div>
-              </div>
-            </div>
-
-            <div class="analysis-grid">
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>形态概览</h2>
-                  <span id="shapeScope">近 0 期</span>
-                </div>
-                <div id="shapeStats" class="shape-grid"></div>
-              </div>
-
-              <div class="panel">
-                <div class="panel-title">
-                  <h2>社区共振</h2>
-                  <span id="communitySourceText">待拉取</span>
-                </div>
-                <div id="communityAggregate" class="tickets compact-list muted">暂无数据</div>
-              </div>
+              <div id="backtestPanel" class="backtest-grid muted">暂无回测</div>
             </div>
 
             <div class="panel">
               <div class="panel-title">
-                <h2>来源评分</h2>
-                <span id="sourceScoreScope">待拉取</span>
+                <h2>收藏号码</h2>
+                <span id="favoriteCount">0 注</span>
               </div>
-              <div id="sourceScores" class="score-list muted">暂无数据</div>
+              <div id="favoritesPanel" class="tickets compact-list muted">暂无收藏</div>
             </div>
+          </section>
+
+          <section class="panel indicator-panel">
+            <div class="panel-title">
+              <h2>指标回测走势</h2>
+              <span id="indicatorScope">待计算</span>
+            </div>
+            <div id="indicatorBacktest" class="backtest-grid muted">暂无指标回测</div>
+            <div class="line-chart-grid">
+              <div class="line-chart-card">
+                <div class="mini-title">和值与回归线</div>
+                <div id="sumLineChart" class="line-chart"></div>
+              </div>
+              <div class="line-chart-card">
+                <div class="mini-title">冷热占比</div>
+                <div id="ratioLineChart" class="line-chart"></div>
+              </div>
+              <div class="line-chart-card">
+                <div class="mini-title">奇偶走势</div>
+                <div id="oddLineChart" class="line-chart"></div>
+              </div>
+            </div>
+            <div id="classificationList" class="classification-list"></div>
+          </section>
+
+          <section class="analysis-grid">
+            <div class="panel">
+              <div class="panel-title">
+                <h2>命中闭环</h2>
+                <span id="recordScope">待核对</span>
+              </div>
+              <div id="recordSummary" class="backtest-grid muted">暂无记录</div>
+              <div id="recordList" class="record-list muted">暂无历史推荐</div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h2>大神推荐战绩</h2>
+                <span id="performanceScope">待积累</span>
+              </div>
+              <div id="performanceList" class="score-list muted">暂无战绩</div>
+            </div>
+          </section>
+
+          <section class="analysis-grid">
+            <div class="panel">
+              <div class="panel-title">
+                <h2>红球分布</h2>
+                <span>01-33</span>
+              </div>
+              <div id="redChart" class="bar-chart"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h2>蓝球分布</h2>
+                <span>01-16</span>
+              </div>
+              <div id="blueChart" class="bar-chart blue"></div>
+            </div>
+          </section>
+
+          <section class="analysis-grid">
+            <div class="panel">
+              <div class="panel-title">
+                <h2>形态概览</h2>
+                <span id="shapeScope">近 30 期</span>
+              </div>
+              <div id="shapeStats" class="shape-grid"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h2>社区共振</h2>
+                <span id="communitySourceText">待抓取</span>
+              </div>
+              <div id="communityAggregate" class="tickets compact-list muted">暂无数据</div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <h2>来源评分</h2>
+              <span id="sourceScoreScope">待抓取</span>
+            </div>
+            <div id="sourceScores" class="score-list muted">暂无数据</div>
           </section>
         </section>
       </main>
 
-      <footer>
-        数据分析只反映历史样本和公开页面文本，不能提高随机开奖的确定性。请理性参考。
-      </footer>
+      <footer>数据分析只反映历史样本和公开页面文本，不能提高随机开奖的确定性。请理性参考。</footer>
     </div>
 
     <script src="/app.js"></script>
