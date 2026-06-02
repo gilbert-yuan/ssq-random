@@ -89,10 +89,20 @@ export function generateTicket(analysisResult, kind = "balanced", community = nu
   };
 }
 
-function deterministicTicketFromWindow(history, kind) {
+function deterministicTicketFromWindow(history, kind, community = null) {
   const snapshot = analyze(history);
   const redStats = snapshot.redStats;
   const blueStats = snapshot.blueStats;
+
+  // 社区策略：若窗口中能拿到聚合票，直接复用其红蓝球
+  if (kind === "community" && community?.aggregate?.[0]?.reds?.length === 6) {
+    const top = community.aggregate[0];
+    return {
+      reds: [...top.reds].sort((a, b) => Number(a) - Number(b)),
+      blue: top.blue
+    };
+  }
+
   let rankedReds;
   if (kind === "hot") rankedReds = [...redStats].sort((a, b) => b.recent - a.recent || b.freq - a.freq);
   else if (kind === "cold") rankedReds = [...redStats].sort((a, b) => b.miss - a.miss || b.freq - a.freq);
@@ -115,16 +125,24 @@ function deterministicTicketFromWindow(history, kind) {
     reds.push(candidate.number);
   }
 
-  const blueRank = [...blueStats].sort((a, b) =>
-    kind === "cold" ? b.miss - a.miss || b.score - a.score : b.score - a.score
-  );
+  // blue 策略给蓝球加重 recent + miss 权重，cold 用纯遗漏
+  let blueRank;
+  if (kind === "cold") {
+    blueRank = [...blueStats].sort((a, b) => b.miss - a.miss || b.score - a.score);
+  } else if (kind === "blue") {
+    blueRank = [...blueStats].sort(
+      (a, b) => b.recent - a.recent || b.miss - a.miss || b.score - a.score
+    );
+  } else {
+    blueRank = [...blueStats].sort((a, b) => b.score - a.score);
+  }
   return {
     reds: reds.sort((a, b) => Number(a) - Number(b)),
     blue: blueRank[0]?.number || "01"
   };
 }
 
-export function runBacktestData(draws, kind) {
+export function runBacktestData(draws, kind, community = null) {
   if (!draws.length) return { results: [], totalRed: 0, blueHits: 0, strongHits: 0, best: null, avgRed: "0.00", blueRate: 0 };
   const sampleSize = Math.min(80, Math.max(12, draws.length - 35));
   const results = [];
@@ -135,7 +153,7 @@ export function runBacktestData(draws, kind) {
     const target = draws[index];
     const history = draws.slice(index + 1);
     if (history.length < 30) continue;
-    const ticket = deterministicTicketFromWindow(history, kind === "community" ? "balanced" : kind);
+    const ticket = deterministicTicketFromWindow(history, kind, community);
     const hit = scoreHit(ticket, target);
     totalRed += hit.redHits;
     blueHits += hit.blueHit;

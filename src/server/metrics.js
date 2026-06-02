@@ -180,10 +180,14 @@ function hotColdSets(history) {
   return { hotSet, coldSet: new Set(cold) };
 }
 
-function computeIndicators(draws) {
+function computeIndicators(draws, options = {}) {
   // 调用方（readDraws）保证 issue DESC，这里不再重排
   const sorted = draws;
-  return sorted.map((draw, index) => {
+  const skip = options.skip instanceof Set ? options.skip : null;
+  const result = [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    const draw = sorted[index];
+    if (skip && skip.has(draw.issue)) continue;
     const previousDraw = sorted[index + 1] || null;
     const history = sorted.slice(index + 1);
     const shape = getDrawShape(draw, previousDraw);
@@ -203,7 +207,7 @@ function computeIndicators(draws) {
     const zoneType = classifyZone(shape.zones);
     const hotColdType = classifyHotCold(hotCount, coldCount);
 
-    return {
+    result.push({
       issue: draw.issue,
       date: draw.date,
       ...shape,
@@ -220,8 +224,9 @@ function computeIndicators(draws) {
       typeLabel: `${sumType} / ${parityType} / ${hotColdType}`,
       regressionSum,
       regressionResidual
-    };
-  });
+    });
+  }
+  return result;
 }
 
 function countBy(rows, key) {

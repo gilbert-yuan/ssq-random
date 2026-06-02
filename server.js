@@ -1,11 +1,13 @@
 const { HOST, PORT } = require("./src/server/config");
 const { createApp } = require("./src/server/app");
 const { closeDb } = require("./src/server/database");
+const { startScheduler, stopScheduler } = require("./src/server/scheduler");
 
 const server = createApp();
 
 server.listen(PORT, HOST, () => {
   console.log(`双色球分析工具已启动：http://${HOST}:${PORT}`);
+  startScheduler();
 });
 
 let shuttingDown = false;
@@ -18,6 +20,7 @@ function shutdown(signal) {
     process.exit(1);
   }, 5000);
   forceTimer.unref();
+  stopScheduler();
   server.close(() => {
     try {
       closeDb();

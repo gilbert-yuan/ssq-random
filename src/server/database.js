@@ -397,6 +397,10 @@ function readIndicators(limit = 240) {
   return stmt.all(limit).map(rowToIndicator);
 }
 
+function readIndicatorIssues() {
+  return new Set(getDb().prepare("SELECT issue FROM draw_indicators").all().map((row) => row.issue));
+}
+
 function databasePath() {
   return path.resolve(SQLITE_FILE);
 }
@@ -420,6 +424,7 @@ module.exports = {
   databasePath,
   getDb,
   readDraws,
+  readIndicatorIssues,
   readIndicators,
   readRecords,
   upsertDraws,

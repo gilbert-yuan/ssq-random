@@ -311,10 +311,6 @@ function renderTickets(tickets) {
     `
     )
     .join("");
-
-  els.tickets.querySelectorAll("[data-favorite]").forEach((button) => {
-    button.addEventListener("click", () => addFavorite(tickets[Number(button.dataset.favorite)]));
-  });
 }
 
 function generateTickets() {
@@ -337,7 +333,7 @@ function generateTickets() {
 
 function runBacktest(kind) {
   if (!state.draws.length) return;
-  const result = runBacktestData(state.draws, kind);
+  const result = runBacktestData(state.draws, kind, state.community);
   els.backtestScope.textContent = `${strategyLabels[kind] || kind} · ${result.results.length} 期`;
   els.backtestPanel.classList.remove("muted");
   els.backtestPanel.innerHTML = [
@@ -384,28 +380,31 @@ function renderFavorites() {
 function renderManualPicker() {
   renderNumberGrid(els.manualRedGrid, 33, state.manual.reds, "red");
   renderNumberGrid(els.manualBlueGrid, 16, new Set(state.manual.blue ? [state.manual.blue] : []), "blue");
+}
 
-  els.manualRedGrid.querySelectorAll("[data-number]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const number = button.dataset.number;
-      if (state.manual.reds.has(number)) state.manual.reds.delete(number);
-      else if (state.manual.reds.size < 6) state.manual.reds.add(number);
-      else setStatus("红球最多选择 6 个", "可先取消一个红球再选择", "warn");
-      state.manual.completion = null;
-      renderManualPicker();
-      scheduleManualCompletion();
-    });
-  });
+function onManualRedClick(event) {
+  const button = event.target.closest("[data-number]");
+  if (!button || !els.manualRedGrid.contains(button)) return;
+  const number = button.dataset.number;
+  if (state.manual.reds.has(number)) state.manual.reds.delete(number);
+  else if (state.manual.reds.size < 6) state.manual.reds.add(number);
+  else {
+    setStatus("红球最多选择 6 个", "可先取消一个红球再选择", "warn");
+    return;
+  }
+  state.manual.completion = null;
+  renderManualPicker();
+  scheduleManualCompletion();
+}
 
-  els.manualBlueGrid.querySelectorAll("[data-number]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const number = button.dataset.number;
-      state.manual.blue = state.manual.blue === number ? "" : number;
-      state.manual.completion = null;
-      renderManualPicker();
-      scheduleManualCompletion();
-    });
-  });
+function onManualBlueClick(event) {
+  const button = event.target.closest("[data-number]");
+  if (!button || !els.manualBlueGrid.contains(button)) return;
+  const number = button.dataset.number;
+  state.manual.blue = state.manual.blue === number ? "" : number;
+  state.manual.completion = null;
+  renderManualPicker();
+  scheduleManualCompletion();
 }
 
 function scheduleManualCompletion() {
@@ -771,6 +770,18 @@ function wireEvents() {
   els.manualStrategySelect.addEventListener("change", completeManualTicket);
   els.completePickBtn.addEventListener("click", completeManualTicket);
   els.clearPickBtn.addEventListener("click", clearManualSelection);
+
+  // 事件委托：建议号列表里的"收藏"按钮
+  els.tickets.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-favorite]");
+    if (!trigger || !els.tickets.contains(trigger)) return;
+    const index = Number(trigger.dataset.favorite);
+    const ticket = state.tickets[index];
+    if (ticket) addFavorite(ticket);
+  });
+
+  els.manualRedGrid.addEventListener("click", onManualRedClick);
+  els.manualBlueGrid.addEventListener("click", onManualBlueClick);
 }
 
 export function initDashboard() {

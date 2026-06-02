@@ -1,13 +1,16 @@
 const { sendJson } = require("./http");
 const { clampInt } = require("./utils");
 const { computeIndicators } = require("./metrics");
-const { databasePath, readDraws, upsertDraws, upsertIndicators } = require("./database");
+const { databasePath, readDraws, readIndicatorIssues, upsertDraws, upsertIndicators } = require("./database");
 const { fetch500HistoryDraws, fetchOfficialDraws, loadFallbackDraws } = require("./draw-sources");
 
 function persistDrawBatch(draws, contextLimit) {
   if (draws.length) upsertDraws(draws);
   const stored = readDraws(Math.max(240, contextLimit));
-  if (stored.length) upsertIndicators(computeIndicators(stored));
+  if (stored.length) {
+    const fresh = computeIndicators(stored, { skip: readIndicatorIssues() });
+    if (fresh.length) upsertIndicators(fresh);
+  }
   return readDraws(contextLimit);
 }
 

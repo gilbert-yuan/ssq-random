@@ -1,4 +1,4 @@
-const { databasePath, readDraws, readIndicators, upsertIndicators } = require("./database");
+const { databasePath, readDraws, readIndicatorIssues, readIndicators, upsertIndicators } = require("./database");
 const { ensureStoredDraws } = require("./draw-controller");
 const { sendJson } = require("./http");
 const { clampInt } = require("./utils");
@@ -9,7 +9,8 @@ async function handleMetrics(reqUrl, res) {
   await ensureStoredDraws(limit);
 
   const draws = readDraws(Math.max(240, limit));
-  upsertIndicators(computeIndicators(draws));
+  const fresh = computeIndicators(draws, { skip: readIndicatorIssues() });
+  if (fresh.length) upsertIndicators(fresh);
   const indicators = readIndicators(limit);
 
   sendJson(res, 200, {

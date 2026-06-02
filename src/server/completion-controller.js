@@ -2,38 +2,8 @@ const { readIndicators } = require("./database");
 const { ensureStoredDraws } = require("./draw-controller");
 const { readRequestBody, sendJson } = require("./http");
 const { getDrawShape, makeNumberStats } = require("./metrics");
+const { buildWeights, ticketFitness } = require("./strategy");
 const { padBall, parseBallList } = require("./utils");
-
-function buildWeights(stats, kind) {
-  const maxFreq = Math.max(1, ...stats.map((item) => item.freq));
-  const maxRecent = Math.max(1, ...stats.map((item) => item.recent));
-  const maxMiss = Math.max(1, ...stats.map((item) => item.miss));
-  return stats.map((item) => {
-    const hot = item.freq / maxFreq;
-    const recent = item.recent / maxRecent;
-    const miss = item.miss / maxMiss;
-    let base = 1 + hot * 2 + recent * 3 + miss * 1.4;
-    if (kind === "hot") base = 1 + hot * 5 + recent * 2;
-    if (kind === "cold") base = 1 + miss * 5 + hot * 0.8;
-    if (kind === "blue") base = 1 + recent * 4 + miss * 1.2 + hot * 1.5;
-    return { ...item, weight: Math.max(0.1, base) };
-  });
-}
-
-function ticketFitness(reds, blue = "01") {
-  if (!Array.isArray(reds) || reds.length !== 6) return 0;
-  if (new Set(reds).size !== 6) return 0;
-  const shape = getDrawShape({ red: reds, blue });
-  let score = 0;
-  if (shape.sum >= 70 && shape.sum <= 135) score += 3;
-  if (shape.odd >= 2 && shape.odd <= 4) score += 3;
-  if (shape.big >= 2 && shape.big <= 4) score += 2;
-  if (shape.zones.every((value) => value >= 1)) score += 3;
-  if (shape.span >= 18 && shape.span <= 31) score += 2;
-  if (shape.ac >= 5 && shape.ac <= 10) score += 2;
-  if (shape.consecutive <= 2) score += 1;
-  return score;
-}
 
 function classifySum(sum) {
   if (sum <= 80) return "低和值";
@@ -85,12 +55,52 @@ function chooseBlue(selectedBlue, blueWeights) {
   return [...blueWeights].sort((a, b) => b.weight - a.weight || b.score - a.score)[0]?.number || "01";
 }
 
+function weightedSampleReds(redWeights, blue, attempts = 220) {
+  const weightMap = new Map(redWeights.map((item) => [item.number, item.weight]));
+  let best = null;
+  let bestScore = -Infinity;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const used = new Set();
+    while (used.size < 6) {
+      const available = redWeights.filter((item) => !used.has(item.number));
+      const total = available.reduce((sum, item) => sum + item.weight, 0) || 1;
+      let cursor = Math.random() * total;
+      let picked = available[available.length - 1].number;
+      for (const item of available) {
+        cursor -= item.weight;
+        if (cursor <= 0) {
+          picked = item.number;
+          break;
+        }
+      }
+      used.add(picked);
+    }
+    const reds = Array.from(used).sort((a, b) => Number(a) - Number(b));
+    const shape = getDrawShape({ red: reds, blue });
+    const shapeScore = ticketFitness(reds, blue);
+    const weightScore = reds.reduce((sum, item) => sum + (weightMap.get(item) || 0), 0);
+    const sumCenterPenalty = Math.abs(shape.sum - 102) * 0.04;
+    const score = shapeScore * 4 + weightScore - sumCenterPenalty;
+    if (score > bestScore) {
+      best = reds;
+      bestScore = score;
+    }
+    if (shapeScore >= 14) break;
+  }
+  return best;
+}
+
 function completeReds(selectedReds, redWeights, blue) {
   if (selectedReds.length === 6) return selectedReds;
+  // 用户未选任何号时，组合空间 C(20, 6) ≈ 39k，全枚举无意义且慢，
+  // 直接走 generator 同款加权抽样启发式。
+  if (selectedReds.length === 0) {
+    return weightedSampleReds(redWeights, blue) || selectedReds;
+  }
   const selected = new Set(selectedReds);
   const weightMap = new Map(redWeights.map((item) => [item.number, item.weight]));
   const needed = 6 - selectedReds.length;
-  const poolSize = selectedReds.length ? 24 : 20;
+  const poolSize = 24;
   const pool = [...redWeights]
     .filter((item) => !selected.has(item.number))
     .sort((a, b) => b.weight - a.weight || Number(a.number) - Number(b.number))
