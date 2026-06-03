@@ -165,39 +165,101 @@ function classifyHotCold(hotCount, coldCount) {
 }
 
 function hotColdSets(history) {
-  if (history.length < 8) return { hotSet: new Set(), coldSet: new Set() };
-  const stats = makeNumberStats(33, history, (draw) => draw.red, Math.min(30, history.length));
-  const hot = [...stats]
-    .sort((a, b) => b.score - a.score || b.recent - a.recent || b.freq - a.freq)
-    .slice(0, 10)
-    .map((item) => item.number);
-  const hotSet = new Set(hot);
-  const cold = [...stats]
-    .filter((item) => !hotSet.has(item.number))
-    .sort((a, b) => b.miss - a.miss || a.freq - b.freq)
-    .slice(0, 8)
-    .map((item) => item.number);
-  return { hotSet, coldSet: new Set(cold) };
+  return hotColdSetsRange(history, 0, history.length);
+}
+
+function hotColdSetsRange(source, start, end) {
+  const length = Math.max(0, end - start);
+  if (length < 8) return { hotSet: new Set(), coldSet: new Set() };
+  const recentSize = Math.min(30, length);
+  const freq = new Int32Array(33);
+  const recent = new Int32Array(33);
+  const miss = new Int32Array(33);
+  for (let i = 0; i < 33; i += 1) miss[i] = length;
+  const seen = new Uint8Array(33);
+
+  for (let offset = 0; offset < length; offset += 1) {
+    const reds = source[start + offset].red;
+    const inRecent = offset < recentSize;
+    for (let r = 0; r < reds.length; r += 1) {
+      const value = Number(reds[r]);
+      if (value < 1 || value > 33) continue;
+      const idx = value - 1;
+      freq[idx] += 1;
+      if (inRecent) recent[idx] += 1;
+      if (!seen[idx]) {
+        seen[idx] = 1;
+        miss[idx] = offset;
+      }
+    }
+  }
+
+  let maxFreq = 1;
+  let maxRecent = 1;
+  let maxMiss = 1;
+  for (let i = 0; i < 33; i += 1) {
+    if (freq[i] > maxFreq) maxFreq = freq[i];
+    if (recent[i] > maxRecent) maxRecent = recent[i];
+    if (miss[i] > maxMiss) maxMiss = miss[i];
+  }
+
+  const ranking = new Array(33);
+  for (let i = 0; i < 33; i += 1) {
+    const omission = Math.min(miss[i] / maxMiss, 1);
+    ranking[i] = {
+      index: i,
+      score: (freq[i] / maxFreq) * 0.42 + (recent[i] / maxRecent) * 0.4 + omission * 0.18,
+      recent: recent[i],
+      freq: freq[i],
+      miss: miss[i]
+    };
+  }
+
+  ranking.sort((a, b) => b.score - a.score || b.recent - a.recent || b.freq - a.freq);
+  const hotSet = new Set();
+  for (let i = 0; i < Math.min(10, ranking.length); i += 1) {
+    hotSet.add(pad(ranking[i].index + 1));
+  }
+
+  const coldCandidates = ranking.filter((item) => !hotSet.has(pad(item.index + 1)));
+  coldCandidates.sort((a, b) => b.miss - a.miss || a.freq - b.freq || a.index - b.index);
+  const coldSet = new Set();
+  for (let i = 0; i < Math.min(8, coldCandidates.length); i += 1) {
+    coldSet.add(pad(coldCandidates[i].index + 1));
+  }
+
+  return { hotSet, coldSet };
+}
+
+function makeShapeCache(draws) {
+  return draws.map((draw, index) => getDrawShape(draw, draws[index + 1] || null));
+}
+
+function sumsForWindow(shapeCache, start, count) {
+  const sums = [];
+  const end = Math.min(shapeCache.length, start + count);
+  for (let index = end - 1; index >= start; index -= 1) {
+    sums.push(shapeCache[index].sum);
+  }
+  return sums;
 }
 
 function computeIndicators(draws, options = {}) {
-  // 调用方（readDraws）保证 issue DESC，这里不再重排
   const sorted = draws;
   const skip = options.skip instanceof Set ? options.skip : null;
+  const shapeCache = makeShapeCache(sorted);
   const result = [];
   for (let index = 0; index < sorted.length; index += 1) {
     const draw = sorted[index];
     if (skip && skip.has(draw.issue)) continue;
-    const previousDraw = sorted[index + 1] || null;
-    const history = sorted.slice(index + 1);
-    const shape = getDrawShape(draw, previousDraw);
-    const { hotSet, coldSet } = hotColdSets(history.slice(0, 80));
+    const shape = shapeCache[index];
+    const historyStart = index + 1;
+    const historyEnd = Math.min(sorted.length, historyStart + 80);
+    const { hotSet, coldSet } = hotColdSetsRange(sorted, historyStart, historyEnd);
     const hotCount = draw.red.filter((item) => hotSet.has(item)).length;
     const coldCount = draw.red.filter((item) => coldSet.has(item)).length;
     const warmCount = 6 - hotCount - coldCount;
-    const regressionWindow = history.slice(0, 20).reverse().map((item, offset, list) =>
-      getDrawShape(item, list[offset - 1] || null).sum
-    );
+    const regressionWindow = sumsForWindow(shapeCache, historyStart, 20);
     const regression = linearRegression(regressionWindow);
     const regressionSum = Number((regressionWindow.length >= 3 ? regression.predict : mean(regressionWindow)).toFixed(2));
     const regressionResidual = Number((shape.sum - regressionSum).toFixed(2));

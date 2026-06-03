@@ -40,7 +40,7 @@ async function withClient(run) {
 
 async function migrate() {
   if (migrationPromise) return migrationPromise;
-  migrationPromise = (async () => {
+  const attempt = (async () => {
     const client = await getPool().connect();
     try {
       await client.query("BEGIN");
@@ -150,6 +150,8 @@ async function migrate() {
           ON records (user_id, type, ticket_key, base_issue, strategy, source_name);
         CREATE INDEX IF NOT EXISTS idx_records_order
           ON records (user_id, pinned_at DESC NULLS LAST, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_records_type_order
+          ON records (user_id, type, pinned_at DESC NULLS LAST, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_draws_issue_order
           ON draws ((issue::BIGINT) DESC);
         CREATE INDEX IF NOT EXISTS idx_indicators_issue_order
@@ -157,13 +159,21 @@ async function migrate() {
       `);
       await client.query("COMMIT");
     } catch (error) {
-      await client.query("ROLLBACK");
-      migrationPromise = null;
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // 忽略二次错误，确保下一行可以抛出原始错误
+      }
       throw error;
     } finally {
       client.release();
     }
   })();
+  migrationPromise = attempt.catch((error) => {
+    // 失败允许下次调用重新尝试，否则错误会被永久缓存
+    migrationPromise = null;
+    throw error;
+  });
   return migrationPromise;
 }
 
@@ -255,20 +265,85 @@ function rowToIndicator(row) {
   };
 }
 
+function chunkItems(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function buildValuesClause(rows, columnsPerRow, mapRow) {
+  const params = [];
+  const values = rows
+    .map((row, rowIndex) => {
+      const rowValues = mapRow(row);
+      params.push(...rowValues);
+      const base = rowIndex * columnsPerRow;
+      return `(${rowValues.map((_, valueIndex) => `$${base + valueIndex + 1}`).join(", ")})`;
+    })
+    .join(",\n            ");
+  return { params, values };
+}
+
+function buildRecordsValuesClause(rows, userId) {
+  const params = [];
+  const values = rows
+    .map((record, rowIndex) => {
+      const rowValues = [
+        record.id,
+        userId,
+        record.type,
+        record.key,
+        JSON.stringify(record.reds),
+        record.blue,
+        record.strategy,
+        record.sourceName,
+        record.sourceUrl,
+        record.baseIssue,
+        record.baseDate,
+        record.reason,
+        record.score,
+        record.pinnedAt || "",
+        record.createdAt
+      ];
+      params.push(...rowValues);
+      const base = rowIndex * rowValues.length;
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::jsonb, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, NULLIF($${base + 14}, '')::timestamptz, $${base + 15})`;
+    })
+    .join(",\n            ");
+  return { params, values };
+}
+
 async function upsertDraws(draws) {
   if (!draws.length) return 0;
   const now = new Date().toISOString();
   return withClient(async (client) => {
     await client.query("BEGIN");
     try {
-      for (const draw of draws) {
+      for (const batch of chunkItems(draws, 500)) {
+        const { params, values } = buildValuesClause(batch, 13, (draw) => [
+          draw.issue,
+          draw.date || "",
+          draw.red[0],
+          draw.red[1],
+          draw.red[2],
+          draw.red[3],
+          draw.red[4],
+          draw.red[5],
+          draw.blue,
+          draw.sales || "",
+          draw.poolMoney || "",
+          draw.source || "",
+          now
+        ]);
         await client.query(
           `
             INSERT INTO draws (
               issue, draw_date, red1, red2, red3, red4, red5, red6, blue,
               sales, pool_money, source, fetched_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            VALUES ${values}
             ON CONFLICT(issue) DO UPDATE SET
               draw_date = EXCLUDED.draw_date,
               red1 = EXCLUDED.red1,
@@ -283,21 +358,7 @@ async function upsertDraws(draws) {
               source = EXCLUDED.source,
               fetched_at = EXCLUDED.fetched_at
           `,
-          [
-            draw.issue,
-            draw.date || "",
-            draw.red[0],
-            draw.red[1],
-            draw.red[2],
-            draw.red[3],
-            draw.red[4],
-            draw.red[5],
-            draw.blue,
-            draw.sales || "",
-            draw.poolMoney || "",
-            draw.source || "",
-            now
-          ]
+          params
         );
       }
       await client.query("COMMIT");
@@ -330,39 +391,24 @@ async function countRecords(userId = DEFAULT_USER_ID) {
 async function appendRecords(records, userId = DEFAULT_USER_ID) {
   if (!records.length) return [];
   return withClient(async (client) => {
-    const added = [];
     await client.query("BEGIN");
     try {
-      for (const record of records) {
+      const added = [];
+      for (const batch of chunkItems(records, 500)) {
+        const { params, values } = buildRecordsValuesClause(batch, userId);
         const result = await client.query(
           `
             INSERT INTO records (
               id, user_id, type, ticket_key, reds_json, blue, strategy, source_name, source_url,
               base_issue, base_date, reason, score, pinned_at, created_at
             )
-            VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, NULLIF($14, '')::timestamptz, $15)
+            VALUES ${values}
             ON CONFLICT(user_id, type, ticket_key, base_issue, strategy, source_name) DO NOTHING
             RETURNING *
           `,
-          [
-            record.id,
-            userId,
-            record.type,
-            record.key,
-            JSON.stringify(record.reds),
-            record.blue,
-            record.strategy,
-            record.sourceName,
-            record.sourceUrl,
-            record.baseIssue,
-            record.baseDate,
-            record.reason,
-            record.score,
-            record.pinnedAt || "",
-            record.createdAt
-          ]
+          params
         );
-        if (result.rows[0]) added.push(rowToRecord(result.rows[0]));
+        added.push(...result.rows.map(rowToRecord));
       }
       await client.query("COMMIT");
       return added;
@@ -373,16 +419,35 @@ async function appendRecords(records, userId = DEFAULT_USER_ID) {
   });
 }
 
-async function readRecords(limit = 3000, userId = DEFAULT_USER_ID) {
+async function readRecords(options = 3000, maybeUserId = DEFAULT_USER_ID) {
+  const normalized =
+    typeof options === "object" && options
+      ? {
+          limit: options.limit ?? 3000,
+          userId: options.userId ?? DEFAULT_USER_ID,
+          type: options.type ?? ""
+        }
+      : {
+          limit: options,
+          userId: maybeUserId,
+          type: ""
+        };
+  const clauses = ["user_id = $1"];
+  const params = [normalized.userId];
+  if (normalized.type) {
+    params.push(normalized.type);
+    clauses.push(`type = $${params.length}`);
+  }
+  params.push(normalized.limit);
   const result = await query(
     `
       SELECT *
       FROM records
-      WHERE user_id = $1
+      WHERE ${clauses.join(" AND ")}
       ORDER BY pinned_at DESC NULLS LAST, created_at DESC
-      LIMIT $2
+      LIMIT $${params.length}
     `,
-    [userId, limit]
+    params
   );
   return result.rows.map(rowToRecord);
 }
@@ -407,7 +472,43 @@ async function upsertIndicators(indicators) {
   return withClient(async (client) => {
     await client.query("BEGIN");
     try {
-      for (const item of indicators) {
+      for (const batch of chunkItems(indicators, 500)) {
+        const { params, values } = buildValuesClause(batch, 34, (item) => [
+          item.issue,
+          item.date || "",
+          item.sum,
+          item.span,
+          item.odd,
+          item.even,
+          item.big,
+          item.small,
+          item.prime,
+          item.composite,
+          item.zones[0],
+          item.zones[1],
+          item.zones[2],
+          item.mod012[0],
+          item.mod012[1],
+          item.mod012[2],
+          item.consecutive,
+          item.ac,
+          item.repeat,
+          item.blueOdd,
+          item.hotCount,
+          item.warmCount,
+          item.coldCount,
+          item.hotRatio,
+          item.coldRatio,
+          item.sumType,
+          item.parityType,
+          item.sizeType,
+          item.zoneType,
+          item.hotColdType,
+          item.typeLabel,
+          item.regressionSum,
+          item.regressionResidual,
+          now
+        ]);
         await client.query(
           `
             INSERT INTO draw_indicators (
@@ -418,12 +519,7 @@ async function upsertIndicators(indicators) {
               parity_type, size_type, zone_type, hot_cold_type, type_label,
               regression_sum, regression_residual, updated_at
             )
-            VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-              $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-              $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-              $31, $32, $33, $34
-            )
+            VALUES ${values}
             ON CONFLICT(issue) DO UPDATE SET
               draw_date = EXCLUDED.draw_date,
               sum_value = EXCLUDED.sum_value,
@@ -459,42 +555,7 @@ async function upsertIndicators(indicators) {
               regression_residual = EXCLUDED.regression_residual,
               updated_at = EXCLUDED.updated_at
           `,
-          [
-            item.issue,
-            item.date || "",
-            item.sum,
-            item.span,
-            item.odd,
-            item.even,
-            item.big,
-            item.small,
-            item.prime,
-            item.composite,
-            item.zones[0],
-            item.zones[1],
-            item.zones[2],
-            item.mod012[0],
-            item.mod012[1],
-            item.mod012[2],
-            item.consecutive,
-            item.ac,
-            item.repeat,
-            item.blueOdd,
-            item.hotCount,
-            item.warmCount,
-            item.coldCount,
-            item.hotRatio,
-            item.coldRatio,
-            item.sumType,
-            item.parityType,
-            item.sizeType,
-            item.zoneType,
-            item.hotColdType,
-            item.typeLabel,
-            item.regressionSum,
-            item.regressionResidual,
-            now
-          ]
+          params
         );
       }
       await client.query("COMMIT");
@@ -519,8 +580,20 @@ async function readIndicators(limit = 240) {
   return result.rows.map(rowToIndicator);
 }
 
-async function readIndicatorIssues() {
-  const result = await query("SELECT issue FROM draw_indicators");
+async function readIndicatorIssues(limit = 0) {
+  const normalizedLimit = Number(limit);
+  const result =
+    Number.isFinite(normalizedLimit) && normalizedLimit > 0
+      ? await query(
+          `
+            SELECT issue
+            FROM draw_indicators
+            ORDER BY issue::BIGINT DESC
+            LIMIT $1
+          `,
+          [normalizedLimit]
+        )
+      : await query("SELECT issue FROM draw_indicators");
   return new Set(result.rows.map((row) => row.issue));
 }
 

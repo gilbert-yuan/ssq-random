@@ -97,8 +97,7 @@ function serializePickRecord(record) {
 
 async function loadFavoriteRecords(draws, userId, maxRecords = 300) {
   if (!userId) return [];
-  const allRecords = await readRecords(maxRecords, userId);
-  const favorites = allRecords.filter((item) => item.type === "favorite");
+  const favorites = await readRecords({ limit: maxRecords, userId, type: "favorite" });
   return annotateRecords(favorites, draws);
 }
 

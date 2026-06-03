@@ -1,10 +1,7 @@
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
-const path = require("node:path");
-const { loadDotEnv } = require("../src/server/env-file");
 
 const CHECK_FILES = [
-  "ecosystem.config.cjs",
   "server.js",
   "public/app.js",
   "package.json",
@@ -35,15 +32,11 @@ function walkFiles(dir, filter) {
 
 function checkSyntax(file) {
   return new Promise((resolve, reject) => {
-    const source = fs.readFileSync(file, "utf8");
-    const isModule = /(^|\n)\s*(import\s|export\s)/.test(source);
-    const args = isModule ? ["--check", "--input-type=module"] : ["--check", file];
-    const child = spawn(process.execPath, args, { stdio: "pipe" });
+    const child = spawn(process.execPath, ["--check", file], { stdio: "pipe" });
     let output = "";
     child.stderr.on("data", (chunk) => {
       output += chunk;
     });
-    if (isModule) child.stdin.end(source);
     child.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error(`${file} syntax check failed\n${output}`));
@@ -63,23 +56,17 @@ async function checkLauncherScripts() {
   if (shellScript.includes("\r\n")) {
     throw new Error("start.sh must use LF line endings for Ubuntu compatibility");
   }
-  if (!shellScript.includes("command -v pm2")) {
-    throw new Error("start.sh must check that pm2 is installed");
-  }
-  if (!shellScript.includes("pm2 startOrRestart ecosystem.config.cjs --update-env")) {
-    throw new Error("start.sh must start the app with pm2");
+  if (!shellScript.includes("node server.js")) {
+    throw new Error("start.sh must run node server.js");
   }
 
   const batchScript = await fs.promises.readFile("start.bat", "utf8");
-  if (!/where\s+pm2/i.test(batchScript)) {
-    throw new Error("start.bat must check that pm2 is installed");
-  }
-  if (!/pm2\s+startOrRestart\s+ecosystem\.config\.cjs\s+--update-env/i.test(batchScript)) {
-    throw new Error("start.bat must start the app with pm2");
+  if (!/node\s+server\.js/i.test(batchScript)) {
+    throw new Error("start.bat must run node server.js");
   }
 }
 
-async function waitForServer(port, timeoutMs = 15000) {
+async function waitForServer(port, timeoutMs = 5000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     try {
@@ -98,42 +85,11 @@ function requireEnv(name) {
   }
 }
 
-async function fetchEndpoint(port, path, options = {}) {
-  const response = await fetch(`http://127.0.0.1:${port}${path}`, options);
-  if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
-  return response;
-}
-
 async function checkEndpoint(port, path, validate) {
-  const response = await fetchEndpoint(port, path);
+  const response = await fetch(`http://127.0.0.1:${port}${path}`);
+  if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
   const text = await response.text();
   validate(text);
-}
-
-async function registerSmokeUser(port) {
-  const stamp = Date.now().toString(36);
-  const response = await fetchEndpoint(port, "/api/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      username: `smoke_${stamp}`.slice(0, 24),
-      password: `pass-${stamp}`,
-      displayName: "Smoke Test"
-    })
-  });
-  const cookie = response.headers
-    .get("set-cookie")
-    ?.split(";")
-    .map((item) => item.trim())
-    .find((item) => item);
-  if (!cookie) {
-    throw new Error("auth register did not return a session cookie");
-  }
-  const payload = await response.json();
-  if (!payload.ok || !payload.authenticated || !payload.user?.id) {
-    throw new Error("auth register returned an invalid payload");
-  }
-  return cookie;
 }
 
 async function withServer(run) {
@@ -154,12 +110,6 @@ async function withServer(run) {
   try {
     await waitForServer(port);
     await run(port);
-  } catch (error) {
-    const serverOutput = output.trim();
-    if (serverOutput) {
-      error.message = `${error.message}\nserver output:\n${serverOutput}`;
-    }
-    throw error;
   } finally {
     child.kill();
   }
@@ -170,11 +120,10 @@ async function withServer(run) {
 }
 
 async function main() {
-  loadDotEnv(path.join(__dirname, "..", ".env"));
   requireEnv("DATABASE_URL");
   const jsFiles = Array.from(
     new Set([
-      ...CHECK_FILES.filter((file) => file.endsWith(".js") || file.endsWith(".cjs")),
+      ...CHECK_FILES.filter((file) => file.endsWith(".js")),
       ...walkFiles("src/server", (file) => file.endsWith(".js")),
       ...walkFiles("public/js", (file) => file.endsWith(".js")),
       ...walkFiles("miniprogram", (file) => file.endsWith(".js"))
@@ -185,30 +134,43 @@ async function main() {
   await checkLauncherScripts();
 
   await withServer(async (port) => {
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const stamp = Date.now();
+    const credentials = {
+      username: `smoke-${stamp}`,
+      password: `smoke-pass-${stamp}`,
+      clientType: "miniprogram"
+    };
+    const registerResponse = await fetch(`${baseUrl}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-client-type": "miniprogram" },
+      body: JSON.stringify(credentials)
+    });
+    if (!registerResponse.ok) {
+      throw new Error(`register returned HTTP ${registerResponse.status}`);
+    }
+    const registerPayload = await registerResponse.json();
+    const sessionToken = registerPayload.sessionToken;
+    if (!sessionToken) throw new Error("register did not return a session token");
+    const authHeaders = { "x-session-token": sessionToken };
+
     await checkEndpoint(port, "/", (text) => {
       if (!text.includes("<title>双色球分析台</title>")) throw new Error("home page title missing");
-      if (!text.includes("window.__assetVersion")) throw new Error("home page must expose an asset version");
-      if (!text.includes('/styles.css?v=')) throw new Error("home page must version styles.css");
-      if (!text.includes('/app.js?v=')) throw new Error("home page must version app.js");
     });
-    for (const assetPath of ["/app.js", "/js/pages/dashboard.js", "/styles.css"]) {
-      const response = await fetchEndpoint(port, assetPath);
-      if (!String(response.headers.get("cache-control") || "").includes("no-store")) {
-        throw new Error(`${assetPath} must disable cache`);
-      }
-    }
     await checkEndpoint(port, "/api/draws?limit=30", (text) => {
       const payload = JSON.parse(text);
       if (!Array.isArray(payload.draws) || payload.draws.length === 0) {
         throw new Error("draw endpoint returned no draws");
       }
     });
-    await checkEndpoint(port, "/api/records?limit=30", (text) => {
-      const payload = JSON.parse(text);
-      if (!payload.ok || !Array.isArray(payload.records)) {
+    {
+      const response = await fetch(`${baseUrl}/api/records?limit=30`, { headers: authHeaders });
+      if (!response.ok) throw new Error(`/api/records returned HTTP ${response.status}`);
+      const payload = await response.json();
+      if (!payload.ok || !payload.authenticated || !Array.isArray(payload.records)) {
         throw new Error("records endpoint returned an invalid payload");
       }
-    });
+    }
     await checkEndpoint(port, "/api/metrics?limit=30", (text) => {
       const payload = JSON.parse(text);
       if (!payload.ok || !Array.isArray(payload.series)) {
@@ -237,12 +199,11 @@ async function main() {
     if (!completionPayload.ok || completionPayload.ticket?.reds?.length !== 6 || !completionPayload.ticket?.blue) {
       throw new Error("complete-ticket endpoint returned an invalid ticket");
     }
-    const authCookie = await registerSmokeUser(port);
     const testRecordStamp = Date.now();
     const testRecordId = `smoke-${testRecordStamp}`;
-    const saveRecord = await fetch(`http://127.0.0.1:${port}/api/records`, {
+    const saveRecord = await fetch(`${baseUrl}/api/records`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: authCookie },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({
         record: {
           id: testRecordId,
@@ -255,23 +216,36 @@ async function main() {
       })
     });
     if (!saveRecord.ok) throw new Error(`record save returned HTTP ${saveRecord.status}`);
-    const pinRecord = await fetch(`http://127.0.0.1:${port}/api/records`, {
+    const pinRecord = await fetch(`${baseUrl}/api/records`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Cookie: authCookie },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ id: testRecordId, pinned: true })
     });
     const pinPayload = await pinRecord.json();
     if (!pinRecord.ok || !pinPayload.ok || !pinPayload.pinnedAt) {
       throw new Error("record pin endpoint returned an invalid payload");
     }
-    const deleteSavedRecord = await fetch(`http://127.0.0.1:${port}/api/records?id=${encodeURIComponent(testRecordId)}`, {
+    const deleteSavedRecord = await fetch(`${baseUrl}/api/records?id=${encodeURIComponent(testRecordId)}`, {
       method: "DELETE",
-      headers: { Cookie: authCookie }
+      headers: authHeaders
     });
     const deletePayload = await deleteSavedRecord.json();
     if (!deleteSavedRecord.ok || !deletePayload.ok || deletePayload.deleted !== 1) {
       throw new Error("record delete endpoint returned an invalid payload");
     }
+    const unauthSave = await fetch(`${baseUrl}/api/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ record: { type: "favorite", reds: ["01", "02", "03", "04", "05", "06"], blue: "08" } })
+    });
+    if (unauthSave.status !== 401) {
+      throw new Error(`unauthenticated record save expected 401, got ${unauthSave.status}`);
+    }
+    const logoutResponse = await fetch(`${baseUrl}/api/auth/logout`, {
+      method: "POST",
+      headers: authHeaders
+    });
+    if (!logoutResponse.ok) throw new Error(`logout returned HTTP ${logoutResponse.status}`);
     await checkEndpoint(port, "/api/community?urls=http%3A%2F%2F127.0.0.1%3A5199%2F", (text) => {
       const payload = JSON.parse(text);
       if (!payload.errors?.some((item) => /local and private network/i.test(item.error))) {

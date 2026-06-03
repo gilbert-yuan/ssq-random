@@ -4,7 +4,13 @@ const { appendRecords, countRecords, deleteRecord, readRecords, setRecordPinned 
 const { ensureStoredDraws } = require("./draw-controller");
 const { readJson } = require("./json-store");
 const { readJsonBody, sendJson } = require("./http");
-const { annotateRecords, buildJackpotAnnouncements, buildRecordSummary, buildSourcePerformance } = require("./record-results");
+const {
+  annotateRecordsWithContext,
+  buildAnnotationContext,
+  buildJackpotAnnouncements,
+  buildRecordSummary,
+  buildSourcePerformance
+} = require("./record-results");
 const { clampInt, normalizeRecord } = require("./utils");
 
 let legacyMigrationPromise = null;
@@ -91,8 +97,10 @@ async function handleRecords(req, reqUrl, res) {
     sendJson(res, 200, emptyRecordPayload(draws, authState));
     return;
   }
-  const records = await readRecords(3000, userId);
-  const annotated = await annotateRecords(records, draws);
+  const records = await readRecords({ limit: 3000, userId });
+  const annotated = records.length
+    ? annotateRecordsWithContext(records, await buildAnnotationContext(draws))
+    : [];
 
   sendJson(res, 200, {
     ok: true,

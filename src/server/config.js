@@ -10,7 +10,6 @@ const CACHE_DIR = path.join(DATA_DIR, "cache");
 const SAMPLE_FILE = path.join(DATA_DIR, "ssq-sample.json");
 const COMMUNITY_SOURCES_FILE = path.join(DATA_DIR, "community-sources.json");
 const LEGACY_RECORDS_FILE = path.join(DATA_DIR, "records.json");
-const SQLITE_FILE = path.join(DATA_DIR, "ssq.sqlite");
 
 function encodeUserInfoPart(value) {
   try {
@@ -92,6 +91,5 @@ module.exports = {
   ROOT_DIR,
   SESSION_COOKIE_NAME,
   SESSION_TTL_DAYS,
-  SAMPLE_FILE,
-  SQLITE_FILE
+  SAMPLE_FILE
 };

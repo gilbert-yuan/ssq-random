@@ -30,26 +30,54 @@ function issueDistance(baseIssue, drawIssue) {
   return draw - base;
 }
 
-function findValidationDraw(record, ascendingDraws) {
+function findValidationDraw(record, ascendingDraws, ascendingIssues) {
   if (record.baseIssue) {
-    return ascendingDraws.find((draw) => issueDistance(record.baseIssue, draw.issue) > 0) || null;
+    const baseIssue = Number(record.baseIssue);
+    if (!Number.isFinite(baseIssue)) return null;
+    let left = 0;
+    let right = ascendingIssues.length - 1;
+    let answer = -1;
+    while (left <= right) {
+      const middle = Math.floor((left + right) / 2);
+      if (ascendingIssues[middle] > baseIssue) {
+        answer = middle;
+        right = middle - 1;
+      } else {
+        left = middle + 1;
+      }
+    }
+    return answer >= 0 ? ascendingDraws[answer] : null;
   }
   return ascendingDraws[ascendingDraws.length - 1] || null;
 }
 
-async function annotateRecords(records, draws) {
+async function buildAnnotationContext(draws, options = {}) {
   const ascendingDraws = [...draws].sort((a, b) => Number(a.issue) - Number(b.issue));
-  const prizeMap = await loadPrizeDetailsByIssue(draws.map((draw) => draw.issue));
+  return {
+    ascendingDraws,
+    ascendingIssues: ascendingDraws.map((draw) => Number(draw.issue)),
+    prizeMap: options.skipPrizeFetch
+      ? {}
+      : await loadPrizeDetailsByIssue(draws.map((draw) => draw.issue))
+  };
+}
 
+function annotateRecordsWithContext(records, context) {
   return records.map((record) => {
-    const matchedDraw = findValidationDraw(record, ascendingDraws);
-    const hit = matchedDraw ? scoreRecordAgainstDraw(record, matchedDraw, prizeMap) : null;
+    const matchedDraw = findValidationDraw(record, context.ascendingDraws, context.ascendingIssues);
+    const hit = matchedDraw ? scoreRecordAgainstDraw(record, matchedDraw, context.prizeMap) : null;
     return {
       ...record,
       status: hit ? (hit.prize.won ? "won" : "lost") : "pending",
       hit
     };
   });
+}
+
+async function annotateRecords(records, draws) {
+  if (!records.length) return [];
+  const context = await buildAnnotationContext(draws);
+  return annotateRecordsWithContext(records, context);
 }
 
 function buildRecordSummary(records) {
@@ -157,6 +185,8 @@ function buildJackpotAnnouncements(records, limit = 5) {
 
 module.exports = {
   annotateRecords,
+  annotateRecordsWithContext,
+  buildAnnotationContext,
   buildJackpotAnnouncements,
   buildRecordSummary,
   buildSourcePerformance

@@ -9,17 +9,24 @@ const { sendJson } = require("./http");
 
 async function handleCommunity(reqUrl, res) {
   const limitedSources = await readSources(reqUrl.searchParams);
-  const recommendations = [];
-  const errors = [];
-
-  for (const source of limitedSources) {
-    try {
-      const html = await fetchHtml(source);
-      recommendations.push(...extractRecommendations(html, source));
-    } catch (error) {
-      errors.push({ sourceName: source.name, sourceUrl: source.url, error: error.message });
-    }
-  }
+  const results = await Promise.all(
+    limitedSources.map(async (source) => {
+      try {
+        const html = await fetchHtml(source);
+        return {
+          recommendations: extractRecommendations(html, source),
+          error: null
+        };
+      } catch (error) {
+        return {
+          recommendations: [],
+          error: { sourceName: source.name, sourceUrl: source.url, error: error.message }
+        };
+      }
+    })
+  );
+  const recommendations = results.flatMap((item) => item.recommendations);
+  const errors = results.map((item) => item.error).filter(Boolean);
 
   sendJson(res, 200, {
     fetchedAt: new Date().toISOString(),

@@ -3,6 +3,7 @@ const { SESSION_COOKIE_NAME, SESSION_TTL_DAYS } = require("./config");
 const { query, withClient } = require("./database");
 
 const USERNAME_RE = /^[\p{Letter}\p{Number}_-]{3,24}$/u;
+const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(String(token || "")).digest("hex");
@@ -204,6 +205,7 @@ async function readSessionByToken(token) {
         s.id AS session_id,
         s.user_id,
         s.expires_at,
+        s.last_seen_at,
         u.*
       FROM sessions s
       JOIN users u ON u.id = s.user_id
@@ -215,7 +217,10 @@ async function readSessionByToken(token) {
   );
   const row = result.rows[0];
   if (!row) return null;
-  await query("UPDATE sessions SET last_seen_at = NOW() WHERE id = $1", [row.session_id]);
+  const lastSeenAt = row.last_seen_at instanceof Date ? row.last_seen_at : new Date(row.last_seen_at);
+  if (!Number.isNaN(lastSeenAt.getTime()) && Date.now() - lastSeenAt.getTime() >= SESSION_TOUCH_INTERVAL_MS) {
+    await query("UPDATE sessions SET last_seen_at = NOW() WHERE id = $1", [row.session_id]);
+  }
   return {
     sessionId: row.session_id,
     userId: row.user_id,

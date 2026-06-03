@@ -1,17 +1,34 @@
 const { sendJson } = require("./http");
 const { clampInt } = require("./utils");
 const { computeIndicators } = require("./metrics");
-const { databasePath, readDraws, readIndicatorIssues, upsertDraws, upsertIndicators } = require("./database");
+const { databasePath, readDraws, readIndicatorIssues, readIndicators, upsertDraws, upsertIndicators } = require("./database");
 const { fetch500HistoryDraws, fetchOfficialDraws, loadFallbackDraws } = require("./draw-sources");
+
+async function ensureIndicators(limit = 240, draws = null) {
+  const contextLimit = Math.max(240, limit);
+  let stored = Array.isArray(draws) ? draws.slice(0, contextLimit) : await readDraws(contextLimit);
+  if (!stored.length) {
+    const fallback = await loadFallbackDraws();
+    if (fallback.draws.length) {
+      await upsertDraws(fallback.draws);
+      stored = await readDraws(contextLimit);
+    }
+  }
+  if (stored.length) {
+    const fresh = computeIndicators(stored, { skip: await readIndicatorIssues(contextLimit) });
+    if (fresh.length) await upsertIndicators(fresh);
+  }
+  return {
+    draws: stored.slice(0, limit),
+    indicators: await readIndicators(limit)
+  };
+}
 
 async function persistDrawBatch(draws, contextLimit) {
   if (draws.length) await upsertDraws(draws);
   const stored = await readDraws(Math.max(240, contextLimit));
-  if (stored.length) {
-    const fresh = computeIndicators(stored, { skip: await readIndicatorIssues() });
-    if (fresh.length) await upsertIndicators(fresh);
-  }
-  return readDraws(contextLimit);
+  const hydrated = await ensureIndicators(contextLimit, stored);
+  return hydrated.draws;
 }
 
 async function ensureStoredDraws(limit = 240) {
@@ -73,6 +90,7 @@ async function handleDraws(reqUrl, res) {
 }
 
 module.exports = {
+  ensureIndicators,
   ensureStoredDraws,
   handleDraws,
   loadDraws,

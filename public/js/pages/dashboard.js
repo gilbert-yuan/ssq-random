@@ -312,7 +312,7 @@ function renderMetricDashboard() {
   const data = state.metrics;
   if (!data) return;
   const summary = data.summary || {};
-  els.indicatorScope.textContent = `${summary.count || 0} 期 · SQLite`;
+  els.indicatorScope.textContent = `${summary.count || 0} 期 · PostgreSQL`;
   const backtest = summary.backtest || {};
   const regression = summary.regression || {};
   els.indicatorBacktest.innerHTML = [
@@ -782,7 +782,7 @@ function downloadCsv() {
 async function fetchDraws(refresh = false) {
   const limit = Number(els.limitInput.value || 240);
   setBusy(true);
-  setStatus("正在获取开奖数据", "连接公开开奖数据源并写入 SQLite");
+  setStatus("正在获取开奖数据", "连接公开开奖数据源并写入 PostgreSQL");
   try {
     const data = await getJson(`/api/draws?limit=${limit}${refresh ? "&refresh=1" : ""}`);
     state.draws = data.draws || [];
@@ -791,7 +791,7 @@ async function fetchDraws(refresh = false) {
     await fetchMetrics();
     const detail =
       data.source === "official"
-        ? `官方数据 ${state.draws.length} 期，${data.fromCache ? "来自本地缓存" : "刚刚更新"}，SQLite 已同步`
+        ? `官方数据 ${state.draws.length} 期，${data.fromCache ? "来自本地缓存" : "刚刚更新"}，PostgreSQL 已同步`
         : `${data.warning || "使用备用数据"} ${data.error ? `原因：${data.error}` : ""}`;
     setStatus(data.source === "official" ? "开奖数据已更新" : "使用备用数据", detail, data.source === "official" ? "ok" : "warn");
   } catch (error) {
