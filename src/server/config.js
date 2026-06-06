@@ -1,6 +1,9 @@
 const path = require("node:path");
+const { loadDotEnv } = require("./env-file");
 
 const ROOT_DIR = path.join(__dirname, "..", "..");
+loadDotEnv(path.join(ROOT_DIR, ".env"));
+
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const CACHE_DIR = path.join(DATA_DIR, "cache");
@@ -9,9 +12,48 @@ const COMMUNITY_SOURCES_FILE = path.join(DATA_DIR, "community-sources.json");
 const LEGACY_RECORDS_FILE = path.join(DATA_DIR, "records.json");
 const SQLITE_FILE = path.join(DATA_DIR, "ssq.sqlite");
 
+function encodeUserInfoPart(value) {
+  try {
+    return encodeURIComponent(decodeURIComponent(value));
+  } catch {
+    return encodeURIComponent(value);
+  }
+}
+
+function normalizeDatabaseUrl(value) {
+  if (!value) return "";
+  try {
+    new URL(value);
+    return value;
+  } catch {
+    const schemeMatch = value.match(/^([A-Za-z][A-Za-z0-9+.-]*:\/\/)(.+)$/);
+    if (!schemeMatch) return value;
+
+    const [, scheme, rest] = schemeMatch;
+    const atIndex = rest.lastIndexOf("@");
+    if (atIndex <= 0) return value;
+
+    const userInfo = rest.slice(0, atIndex);
+    const hostAndPath = rest.slice(atIndex + 1);
+    const colonIndex = userInfo.indexOf(":");
+    if (colonIndex < 0) return value;
+
+    const username = userInfo.slice(0, colonIndex);
+    const password = userInfo.slice(colonIndex + 1);
+    const normalized = `${scheme}${encodeUserInfoPart(username)}:${encodeUserInfoPart(password)}@${hostAndPath}`;
+
+    try {
+      new URL(normalized);
+      return normalized;
+    } catch {
+      return value;
+    }
+  }
+}
+
 const PORT = Number(process.env.PORT || 5173);
 const HOST = process.env.HOST || "127.0.0.1";
-const DATABASE_URL = process.env.DATABASE_URL || "";
+const DATABASE_URL = normalizeDatabaseUrl(process.env.DATABASE_URL || "");
 const DB_SSL = process.env.DB_SSL === "1";
 const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || "default";
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "ssq_session";

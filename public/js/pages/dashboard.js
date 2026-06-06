@@ -21,6 +21,7 @@ const els = {
   latestIssue: $("#latestIssue"),
   latestBalls: $("#latestBalls"),
   latestMeta: $("#latestMeta"),
+  latestActions: $("#latestActions"),
   adviceList: $("#adviceList"),
   confidenceText: $("#confidenceText"),
   sourceUrls: $("#sourceUrls"),
@@ -105,6 +106,55 @@ function toRecord(ticket, type = "ticket") {
   };
 }
 
+function formatTicketText(ticket) {
+  const reds = Array.isArray(ticket?.reds) ? ticket.reds : Array.isArray(ticket?.red) ? ticket.red : [];
+  return `${reds.join(" ")} + ${ticket?.blue || ""}`.trim();
+}
+
+function copyButton(ticket) {
+  const text = formatTicketText(ticket);
+  return `<button class="small-button copy-button" data-copy-ticket="${escapeHtml(text)}" type="button" title="复制号码" aria-label="复制号码">复制</button>`;
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("clipboard copy failed");
+}
+
+async function copyTicketFromButton(button) {
+  const text = button.dataset.copyTicket || "";
+  if (!text) return;
+
+  try {
+    await writeClipboardText(text);
+    const originalText = button.textContent;
+    button.textContent = "已复制";
+    button.classList.add("copied");
+    setStatus("已复制号码", text);
+    window.setTimeout(() => {
+      if (!button.isConnected) return;
+      button.textContent = originalText || "复制";
+      button.classList.remove("copied");
+    }, 1200);
+  } catch {
+    setStatus("复制失败", "浏览器未允许访问剪贴板", "warn");
+  }
+}
+
 function currentManualTicket() {
   return state.manual.completion?.ticket || null;
 }
@@ -121,6 +171,8 @@ function renderLatest() {
     <dt>红球和值</dt><dd>${shape.sum}</dd>
     <dt>跨度 / AC</dt><dd>${shape.span} / ${shape.ac}</dd>
   `;
+  els.latestActions.classList.remove("muted");
+  els.latestActions.innerHTML = copyButton(latest);
 }
 
 function renderSummary() {
@@ -316,7 +368,10 @@ function renderTickets(tickets) {
           ${ball(ticket.blue, "blue", true)}
         </div>
         <p>${escapeHtml(ticket.reason)}</p>
-        <button class="small-button" data-favorite="${index}" type="button">收藏</button>
+        <div class="ticket-actions">
+          ${copyButton(ticket)}
+          <button class="small-button" data-favorite="${index}" type="button">收藏</button>
+        </div>
       </div>
     `
     )
@@ -381,6 +436,7 @@ function renderFavorites() {
       <div class="ticket">
         <div class="ticket-head"><span>${escapeHtml(strategyLabels[ticket.kind] || ticket.kind)}</span><span>${escapeHtml(ticket.savedAt)}</span></div>
         <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
+        <div class="ticket-actions">${copyButton(ticket)}</div>
       </div>
     `
     )
@@ -474,7 +530,10 @@ function renderManualResult() {
       </div>
       <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
       <p>${escapeHtml(ticket.reason)}</p>
-      <button class="small-button" data-manual-favorite type="button">收藏当前</button>
+      <div class="ticket-actions">
+        ${copyButton(ticket)}
+        <button class="small-button" data-manual-favorite type="button">收藏当前</button>
+      </div>
     </div>
   `;
   els.manualPositionList.innerHTML = renderPositionRows(completion.position?.rows || []);
@@ -499,6 +558,7 @@ function renderCommunity() {
             ${ball(item.blue, "blue", true)}
           </div>
           <p><a href="${safeExternalUrl(item.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.sourceName)}</a></p>
+          <div class="ticket-actions">${copyButton(item)}</div>
         </div>
       `
       )
@@ -526,6 +586,7 @@ function renderCommunity() {
             ${ball(item.blue, "blue", true)}
           </div>
           <p>${escapeHtml(item.sources.slice(0, 2).join(" / "))}</p>
+          <div class="ticket-actions">${copyButton(item)}</div>
         </div>
       `
       )
@@ -608,7 +669,10 @@ function renderRecords() {
             <span>生成基准 ${escapeHtml(item.baseIssue || "--")}，核对 ${escapeHtml(item.hit?.issue || "--")}</span>
           </div>
           <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
-          ${hitBadge(item.hit)}
+          <div class="record-actions">
+            ${hitBadge(item.hit)}
+            ${copyButton(item)}
+          </div>
         </div>
       `
       )
@@ -780,6 +844,11 @@ function wireEvents() {
   els.manualStrategySelect.addEventListener("change", completeManualTicket);
   els.completePickBtn.addEventListener("click", completeManualTicket);
   els.clearPickBtn.addEventListener("click", clearManualSelection);
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-copy-ticket]");
+    if (!trigger) return;
+    copyTicketFromButton(trigger);
+  });
 
   // 事件委托：建议号列表里的"收藏"按钮
   els.tickets.addEventListener("click", (event) => {

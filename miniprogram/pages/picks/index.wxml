@@ -101,7 +101,10 @@
           <text class="position-rank">{{item.percentileText}}</text>
         </view>
       </view>
-      <button class="sketch-button soft save-button" bindtap="saveManualTicket">保存到我的选号</button>
+      <view class="ticket-actions">
+        <button class="sketch-button copy-button" bindtap="copyManualTicket">复制</button>
+        <button class="sketch-button soft" bindtap="saveManualTicket">保存到我的选号</button>
+      </view>
     </view>
   </view>
 
@@ -135,6 +138,7 @@
       <text class="record-draw" wx:if="{{item.drawText}}">{{item.drawText}}</text>
 
       <view class="record-actions">
+        <button class="sketch-button mini-action copy-button" data-id="{{item.id}}" bindtap="copyRecord">复制</button>
         <button class="sketch-button mini-action" data-id="{{item.id}}" bindtap="togglePinRecord">{{item.pinLabel}}</button>
         <button class="sketch-button mini-action danger" data-id="{{item.id}}" bindtap="deleteRecord">删除</button>
       </view>

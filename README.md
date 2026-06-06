@@ -14,30 +14,36 @@ npm install
 $env:DATABASE_URL = "postgresql://postgres:password@127.0.0.1:5432/ssq_random"
 ```
 
+也可以在项目根目录创建 `.env` 文件：
+
+```text
+DATABASE_URL=postgresql://postgres:password@127.0.0.1:5432/ssq_random
+```
+
+PM2 启动时会读取 `.env`；如果当前终端里也设置了同名环境变量，终端里的值优先。
+
 如需启用 SSL，可再设置：
 
 ```powershell
 $env:DB_SSL = "1"
 ```
 
-如果直接执行 `node server.js` 后立即退出，终端会明确提示是以下哪类问题：
+如果服务启动后立即退出，`pm2 logs ssq-random` 会明确提示是以下哪类问题：
 
 - 未安装 `pg`
 - 未设置 `DATABASE_URL`
 - PostgreSQL 未启动 / 地址错误 / 凭据错误 / 数据库不存在
 
-Windows PowerShell:
-
-```powershell
-cd /d D:\myerp\ssq-random
-node server.js
-```
-
-Ubuntu / Linux:
+安装 PM2：
 
 ```bash
-cd /path/to/ssq-random
-DATABASE_URL=postgresql://postgres:password@127.0.0.1:5432/ssq_random node server.js
+npm install -g pm2
+```
+
+启动服务：
+
+```bash
+npm run start
 ```
 
 也可以使用启动脚本：
@@ -47,13 +53,24 @@ chmod +x ./start.sh
 ./start.sh
 ```
 
+Windows 下也可以双击 `start.bat` 启动。
+
+常用 PM2 命令：
+
+```bash
+npm run status
+npm run logs
+npm run restart
+npm run stop
+```
+
 启动后打开：
 
 ```text
 http://127.0.0.1:5173
 ```
 
-Windows 下也可以双击 `start.bat` 启动。
+如需临时绕过 PM2 在前台直接启动，可执行 `npm run start:node`。
 
 运行自检：
 

@@ -115,6 +115,7 @@
 
     <view class="action-row">
       <button class="sketch-button primary action" loading="{{ticketLoading}}" bindtap="generateTicket">换一组</button>
+      <button class="sketch-button action copy-button" disabled="{{!hasTicket}}" bindtap="copySuggestedTicket">复制</button>
       <button class="sketch-button action" disabled="{{!hasTicket}}" bindtap="saveSuggestedTicket">保存</button>
     </view>
   </view>

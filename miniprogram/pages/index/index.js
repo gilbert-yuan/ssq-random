@@ -73,6 +73,21 @@ function toRecord(ticket, latestDraw) {
   };
 }
 
+function formatTicketText(ticket) {
+  const reds = Array.isArray(ticket?.reds) ? ticket.reds.join(" ") : "";
+  return `${reds} + ${ticket?.blue || ""}`.trim();
+}
+
+function copyTicketToClipboard(ticket) {
+  const data = formatTicketText(ticket);
+  if (!data) return;
+  wx.setClipboardData({
+    data,
+    success: () => wx.showToast({ title: "已复制", icon: "success" }),
+    fail: () => wx.showToast({ title: "复制失败", icon: "none" })
+  });
+}
+
 Page({
   data: {
     loading: false,
@@ -171,6 +186,10 @@ Page({
     } catch (error) {
       wx.showToast({ title: "保存失败", icon: "none" });
     }
+  },
+
+  copySuggestedTicket() {
+    copyTicketToClipboard(this.data.ticket);
   },
 
   goToPicks() {

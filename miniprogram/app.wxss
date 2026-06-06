@@ -137,6 +137,11 @@ button::after {
   background: #dbeafe;
 }
 
+.sketch-button.copy-button {
+  background: #d1fae5;
+  color: #0d7b56;
+}
+
 .picker-chip {
   min-width: 170rpx;
   min-height: 56rpx;
@@ -199,6 +204,18 @@ button::after {
 
 .action {
   flex: 1;
+}
+
+.ticket-actions {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.ticket-actions .sketch-button {
+  flex: 1;
+  height: 72rpx;
+  font-size: 24rpx;
 }
 
 .empty-state {
