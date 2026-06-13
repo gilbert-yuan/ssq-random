@@ -46,7 +46,7 @@ function normalizeRecord(raw) {
   const blues = parseBallList(raw.blue || raw.blueBalls, 16);
   if (reds.length !== 6 || !blues.length) return null;
 
-  const type = ["ticket", "favorite", "community"].includes(raw.type) ? raw.type : "ticket";
+  const type = ["ticket", "favorite", "community", "manual"].includes(raw.type) ? raw.type : "ticket";
   return {
     id: raw.id || crypto.randomUUID(),
     type,

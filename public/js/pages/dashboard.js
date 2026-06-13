@@ -1,32 +1,62 @@
-import { getJson, postJson } from "../services/api.js";
+import { getJson, postJson, requestJson } from "../services/api.js";
 import { defaultSources, state, strategyLabels } from "../state.js";
 import { analyze, drawKey, getDrawShape, pct } from "../domain/analysis.js";
 import { generateTicket, runBacktestData } from "../domain/generator.js";
 import { renderBarChart, renderLineChart, renderPositionRows } from "../components/charts.js";
 import { ball, escapeHtml, hitBadge, metric, percentWidth, safeExternalUrl, shapeItem } from "../components/html.js";
 import { renderNumberGrid } from "../components/number-picker.js";
+import { bootstrapDashboardData } from "./bootstrap.js";
 
 const $ = (selector) => document.querySelector(selector);
+const TICKET_BATCH_SIZE = 6;
 
 const els = {
   limitInput: $("#limitInput"),
   fetchDrawsBtn: $("#fetchDrawsBtn"),
   generateBtn: $("#generateBtn"),
+  refreshTicketsBtn: $("#refreshTicketsBtn"),
   communityBtn: $("#communityBtn"),
   exportBtn: $("#exportBtn"),
+  registerBtn: $("#registerBtn"),
+  loginBtn: $("#loginBtn"),
+  logoutBtn: $("#logoutBtn"),
   strategySelect: $("#strategySelect"),
   statusBand: $("#statusBand"),
+  statusDismissBtn: $("#statusDismissBtn"),
   statusText: $("#statusText"),
   sourceText: $("#sourceText"),
+  authModeText: $("#authModeText"),
+  authHint: $("#authHint"),
+  authUserTag: $("#authUserTag"),
+  authUsernameInput: $("#authUsernameInput"),
+  authPasswordInput: $("#authPasswordInput"),
+  authDisplayNameInput: $("#authDisplayNameInput"),
+  authGuestPanel: $("#authGuestPanel"),
+  authUserPanel: $("#authUserPanel"),
+  authUserTitle: $("#authUserTitle"),
+  authUserSummary: $("#authUserSummary"),
+  authStatTotal: $("#authStatTotal"),
+  authStatChecked: $("#authStatChecked"),
+  authStatWins: $("#authStatWins"),
+  authStatPending: $("#authStatPending"),
   latestIssue: $("#latestIssue"),
+  latestIssueMobile: $("#latestIssueMobile"),
   latestBalls: $("#latestBalls"),
+  latestBallsMobile: $("#latestBallsMobile"),
   latestMeta: $("#latestMeta"),
+  latestMetaMobile: $("#latestMetaMobile"),
   latestActions: $("#latestActions"),
+  latestActionsMobile: $("#latestActionsMobile"),
   adviceList: $("#adviceList"),
+  adviceListMobile: $("#adviceListMobile"),
   confidenceText: $("#confidenceText"),
+  confidenceTextMobile: $("#confidenceTextMobile"),
   sourceUrls: $("#sourceUrls"),
+  sourceUrlsMobile: $("#sourceUrlsMobile"),
   communityCount: $("#communityCount"),
+  communityCountMobile: $("#communityCountMobile"),
   communityResults: $("#communityResults"),
+  communityResultsMobile: $("#communityResultsMobile"),
   communityAggregate: $("#communityAggregate"),
   communitySourceText: $("#communitySourceText"),
   summaryGrid: $("#summaryGrid"),
@@ -39,14 +69,18 @@ const els = {
   backtestPanel: $("#backtestPanel"),
   backtestScope: $("#backtestScope"),
   favoritesPanel: $("#favoritesPanel"),
+  favoritesPanelTab: $("#favoritesPanelTab"),
   favoriteCount: $("#favoriteCount"),
+  favoriteCountTab: $("#favoriteCountTab"),
+  favoriteIssueFilter: $("#favoriteIssueFilter"),
   sourceScores: $("#sourceScores"),
   sourceScoreScope: $("#sourceScoreScope"),
   recordScope: $("#recordScope"),
   recordSummary: $("#recordSummary"),
   recordList: $("#recordList"),
-  performanceScope: $("#performanceScope"),
-  performanceList: $("#performanceList"),
+  manualRecordCount: $("#manualRecordCount"),
+  manualRecordList: $("#manualRecordList"),
+  manualIssueFilter: $("#manualIssueFilter"),
   manualStrategySelect: $("#manualStrategySelect"),
   manualRedGrid: $("#manualRedGrid"),
   manualBlueGrid: $("#manualBlueGrid"),
@@ -59,29 +93,283 @@ const els = {
   classificationList: $("#classificationList"),
   sumLineChart: $("#sumLineChart"),
   ratioLineChart: $("#ratioLineChart"),
-  oddLineChart: $("#oddLineChart")
+  oddLineChart: $("#oddLineChart"),
+  tabButtons: Array.from(document.querySelectorAll("[data-tab-target]")),
+  tabPanels: Array.from(document.querySelectorAll("[data-tab-panel]"))
 };
 
-function setStatus(message, detail = "", type = "ok") {
+const tabOrder = els.tabButtons.map((button) => button.dataset.tabTarget).filter(Boolean);
+
+function setStatus(message, detail = "", type = "ok", placement = "auto") {
   els.statusText.textContent = message;
   els.sourceText.textContent = detail;
   els.statusBand.classList.toggle("warn", type === "warn");
+  els.statusBand.classList.toggle("top", placement === "top");
+  els.statusBand.hidden = false;
 }
 
 function setBusy(isBusy) {
-  [els.fetchDrawsBtn, els.generateBtn, els.communityBtn, els.completePickBtn].forEach((button) => {
+  [els.fetchDrawsBtn, els.generateBtn, els.refreshTicketsBtn, els.communityBtn, els.completePickBtn].forEach((button) => {
     if (button) button.disabled = isBusy;
   });
+}
+
+function setAuthBusy(isBusy) {
+  state.auth.busy = isBusy;
+  [els.registerBtn, els.loginBtn, els.logoutBtn, els.authUsernameInput, els.authPasswordInput, els.authDisplayNameInput].forEach(
+    (node) => {
+      if (node) node.disabled = isBusy;
+    }
+  );
+}
+
+function refreshActiveTab(tabId) {
+  if (tabId === "overview" && state.analysis) renderAnalysis();
+  if (tabId === "mobile-info") {
+    if (state.analysis) renderLatest();
+    if (state.analysis) renderAdvice();
+    renderCommunity();
+  }
+  if (tabId === "picks") {
+    renderManualPicker();
+    renderManualResult();
+    renderFavorites();
+  }
+  if (tabId === "my-records") {
+    renderFavorites();
+    renderSavedManualRecords();
+  }
+  if (tabId === "analysis" && state.metrics) renderMetricDashboard();
+  if (tabId === "community") {
+    if (state.community) renderCommunity();
+    if (state.records) renderRecords();
+  }
+}
+
+function setActiveTab(tabId, { focus = false } = {}) {
+  const targetButton = els.tabButtons.find((button) => button.dataset.tabTarget === tabId) || els.tabButtons[0];
+  const targetId = targetButton?.dataset.tabTarget;
+  if (!targetId) return;
+
+  els.tabButtons.forEach((button) => {
+    const active = button === targetButton;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+    button.tabIndex = active ? 0 : -1;
+  });
+
+  els.tabPanels.forEach((panel) => {
+    const active = panel.dataset.tabPanel === targetId;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
+
+  if (focus) targetButton.focus();
+  window.requestAnimationFrame(() => refreshActiveTab(targetId));
+}
+
+function onTabKeydown(event) {
+  const currentIndex = els.tabButtons.indexOf(event.currentTarget);
+  if (currentIndex < 0) return;
+
+  let nextIndex = currentIndex;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (currentIndex + 1) % els.tabButtons.length;
+  if (event.key === "ArrowLeft" || event.key === "ArrowUp")
+    nextIndex = (currentIndex - 1 + els.tabButtons.length) % els.tabButtons.length;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = els.tabButtons.length - 1;
+  if (nextIndex === currentIndex) return;
+
+  event.preventDefault();
+  setActiveTab(els.tabButtons[nextIndex].dataset.tabTarget, { focus: true });
+}
+
+function wireTabs() {
+  els.tabButtons.forEach((button) => {
+    button.addEventListener("click", () => setActiveTab(button.dataset.tabTarget));
+    button.addEventListener("keydown", onTabKeydown);
+  });
+  setActiveTab(tabOrder[0] || "overview");
 }
 
 function syncAuth(payload) {
   if (typeof payload?.authenticated !== "boolean") return;
   state.auth.authenticated = payload.authenticated;
   state.auth.user = payload.user || null;
+  renderAuth();
 }
 
 function isAuthRequired(error) {
   return error?.status === 401 || error?.code === "AUTH_REQUIRED";
+}
+
+function authSummaryText() {
+  const summary = state.records?.summary || {};
+  if (!state.auth.authenticated || !state.auth.user) {
+    return "登录后自动记录每次选号，并在下一期开奖后核对是否中奖。";
+  }
+  return `已记录 ${summary.total || 0} 注，已核对 ${summary.checked || 0} 注，中奖 ${summary.winCount || 0} 注，待开奖 ${summary.pendingCount || 0} 注。`;
+}
+
+function normalizeCommunitySnapshot(snapshot) {
+  if (!snapshot) return null;
+  return {
+    fetchedAt: snapshot.fetchedAt || "",
+    sources: Array.isArray(snapshot.sources) ? snapshot.sources : [],
+    count: Number(snapshot.count || 0),
+    recommendations: Array.isArray(snapshot.recommendations) ? snapshot.recommendations : [],
+    aggregate: Array.isArray(snapshot.aggregate) ? snapshot.aggregate : [],
+    sourceScores: Array.isArray(snapshot.sourceScores) ? snapshot.sourceScores : [],
+    errors: Array.isArray(snapshot.errors) ? snapshot.errors : []
+  };
+}
+
+function renderAuth() {
+  const loggedIn = Boolean(state.auth.authenticated && state.auth.user);
+  const showGuestPanel = state.auth.authenticated === false;
+  const summary = state.records?.summary || {};
+  if (els.authModeText) els.authModeText.textContent = loggedIn ? "已登录" : "访客模式";
+  if (els.authHint) els.authHint.textContent = authSummaryText();
+  if (els.authUserTag) {
+    els.authUserTag.textContent = loggedIn
+      ? `${state.auth.user.displayName || state.auth.user.username} · ${state.auth.user.username}`
+      : "未登录";
+  }
+  if (els.authGuestPanel) els.authGuestPanel.hidden = !showGuestPanel;
+  if (els.authUserPanel) els.authUserPanel.hidden = !loggedIn;
+  if (els.authUserTitle) {
+    els.authUserTitle.textContent = loggedIn ? state.auth.user.displayName || state.auth.user.username : "未登录";
+  }
+  if (els.authUserSummary) {
+    els.authUserSummary.textContent = loggedIn
+      ? `当前账号：${state.auth.user.displayName || state.auth.user.username}。系统会把你的选号按期号保存，并在下一期开奖后自动核对命中与奖金。`
+      : "登录后这里会展示你的选号与中奖统计。";
+  }
+  if (els.authStatTotal) els.authStatTotal.textContent = String(summary.total || 0);
+  if (els.authStatChecked) els.authStatChecked.textContent = String(summary.checked || 0);
+  if (els.authStatWins) els.authStatWins.textContent = String(summary.winCount || 0);
+  if (els.authStatPending) els.authStatPending.textContent = String(summary.pendingCount || 0);
+}
+
+function authPayloadFromInputs(includeDisplayName = false) {
+  const payload = {
+    username: els.authUsernameInput?.value?.trim() || "",
+    password: els.authPasswordInput?.value || ""
+  };
+  if (includeDisplayName) payload.displayName = els.authDisplayNameInput?.value?.trim() || payload.username;
+  return payload;
+}
+
+function clearAuthForm({ keepUsername = true } = {}) {
+  if (!keepUsername && els.authUsernameInput) els.authUsernameInput.value = "";
+  if (els.authPasswordInput) els.authPasswordInput.value = "";
+  if (els.authDisplayNameInput) els.authDisplayNameInput.value = "";
+}
+
+function setTextPair(primary, secondary, text) {
+  if (primary) primary.textContent = text;
+  if (secondary) secondary.textContent = text;
+}
+
+function setHtmlPair(primary, secondary, html) {
+  if (primary) primary.innerHTML = html;
+  if (secondary) secondary.innerHTML = html;
+}
+
+function setMutedStatePair(primary, secondary, muted) {
+  if (primary) primary.classList.toggle("muted", muted);
+  if (secondary) secondary.classList.toggle("muted", muted);
+}
+
+function syncSourceInputs(value) {
+  if (els.sourceUrls) els.sourceUrls.value = value;
+  if (els.sourceUrlsMobile) els.sourceUrlsMobile.value = value;
+}
+
+function readSourceInput() {
+  const mobileValue = els.sourceUrlsMobile?.value?.trim() || "";
+  const desktopValue = els.sourceUrls?.value?.trim() || "";
+  return mobileValue || desktopValue;
+}
+
+async function refreshAuth() {
+  try {
+    const payload = await getJson("/api/auth/me");
+    syncAuth(payload);
+  } catch {
+    state.auth.authenticated = false;
+    state.auth.user = null;
+    renderAuth();
+  }
+}
+
+async function restoreSavedCommunitySnapshot() {
+  if (!state.auth.authenticated || !state.auth.user) return;
+  try {
+    const payload = await getJson("/api/community?saved=1");
+    syncAuth(payload);
+    const snapshot = normalizeCommunitySnapshot(payload.snapshot);
+    if (!snapshot) return;
+    state.community = snapshot;
+    if (snapshot.sources?.length) {
+      syncSourceInputs(snapshot.sources.map((item) => item.url).filter(Boolean).join("\n"));
+    }
+    renderCommunity();
+  } catch (error) {
+    console.warn("社区快照恢复失败", error);
+  }
+}
+
+async function registerUser() {
+  setAuthBusy(true);
+  try {
+    const payload = await postJson("/api/auth/register", authPayloadFromInputs(true));
+    syncAuth(payload);
+    clearAuthForm();
+    setStatus("注册并登录成功", "后续生成、收藏和社区号码都会按当前用户保存。");
+    await fetchRecords();
+    await restoreSavedCommunitySnapshot();
+  } catch (error) {
+    setStatus("注册失败", error.message, "warn");
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function loginUser() {
+  setAuthBusy(true);
+  try {
+    const payload = await postJson("/api/auth/login", authPayloadFromInputs(false));
+    syncAuth(payload);
+    clearAuthForm();
+    setStatus("登录成功", "你的个人选号记录和命中结果已可同步。");
+    await fetchRecords();
+    await restoreSavedCommunitySnapshot();
+  } catch (error) {
+    setStatus("登录失败", error.message, "warn");
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function logoutUser() {
+  setAuthBusy(true);
+  try {
+    await postJson("/api/auth/logout", {});
+    state.auth.authenticated = false;
+    state.auth.user = null;
+    renderAuth();
+    state.records = null;
+    state.community = null;
+    renderRecords();
+    renderCommunity();
+    syncSourceInputs(defaultSources.join("\n"));
+    setStatus("已退出登录", "当前页面仍可分析开奖，但不会保存到个人账号。");
+  } catch (error) {
+    setStatus("退出失败", error.message, "warn");
+  } finally {
+    setAuthBusy(false);
+  }
 }
 
 function latestBase() {
@@ -111,9 +399,10 @@ function formatTicketText(ticket) {
   return `${reds.join(" ")} + ${ticket?.blue || ""}`.trim();
 }
 
-function copyButton(ticket) {
+function copyButton(ticket, extraClass = "") {
   const text = formatTicketText(ticket);
-  return `<button class="small-button copy-button" data-copy-ticket="${escapeHtml(text)}" type="button" title="复制号码" aria-label="复制号码">复制</button>`;
+  const className = ["small-button", "copy-button", extraClass].filter(Boolean).join(" ");
+  return `<button class="${className}" data-copy-ticket="${escapeHtml(text)}" type="button" title="复制号码" aria-label="复制号码">复制</button>`;
 }
 
 async function writeClipboardText(text) {
@@ -159,20 +448,123 @@ function currentManualTicket() {
   return state.manual.completion?.ticket || null;
 }
 
+function formatSavedTime(value) {
+  const text = String(value || "");
+  return text ? text.replace("T", " ").slice(5, 16) : "";
+}
+
+function recordToSavedTicket(record) {
+  return {
+    id: record.id,
+    reds: record.reds,
+    blue: record.blue,
+    kind: record.strategy || "",
+    strategy: record.strategy || "",
+    score: record.score ?? "--",
+    reason: record.reason || `已记录于 ${formatSavedTime(record.createdAt) || "本期"}`,
+    baseIssue: record.baseIssue || "",
+    baseDate: record.baseDate || "",
+    createdAt: record.createdAt || ""
+  };
+}
+
+function recordToDisplayTicket(record) {
+  return {
+    id: record.id,
+    reds: record.reds,
+    blue: record.blue,
+    kind: record.strategy || "",
+    strategy: record.strategy || "",
+    score: record.score ?? "--",
+    reason: record.reason || `已记录于 ${formatSavedTime(record.createdAt) || "本期"}`,
+    savedAt: formatSavedTime(record.createdAt) || "刚刚",
+    baseIssue: record.baseIssue || "",
+    status: record.status || "pending",
+    hit: record.hit || null
+  };
+}
+
+function buildTicketModes(selected, size = TICKET_BATCH_SIZE) {
+  const seed =
+    selected === "balanced"
+      ? ["balanced", "balanced", "hot", "cold", "blue", "balanced"]
+      : [selected, selected, selected, "balanced", "hot", "cold"];
+  return seed.slice(0, size);
+}
+
+function generateTicketBatch(selected, size = TICKET_BATCH_SIZE) {
+  const modes = buildTicketModes(selected, size);
+  const tickets = [];
+  const seen = new Set();
+  let guard = 0;
+
+  while (tickets.length < size && guard < size * 16) {
+    const mode = modes[tickets.length % modes.length] || selected;
+    const ticket = generateTicket(state.analysis, mode, state.community);
+    const key = drawKey(ticket);
+    if (!seen.has(key)) {
+      seen.add(key);
+      tickets.push(ticket);
+    }
+    guard += 1;
+  }
+
+  while (tickets.length < size) {
+    const ticket = generateTicket(state.analysis, selected, state.community);
+    tickets.push(ticket);
+  }
+
+  return tickets.slice(0, size);
+}
+
+function syncCurrentIssueTicketsFromRecords() {
+  const latestIssue = state.draws[0]?.issue || "";
+  const records = state.records?.records || [];
+  if (!latestIssue || !records.length) {
+    if (!state.tickets.length) {
+      els.tickets.classList.add("empty-state");
+      els.tickets.textContent = state.auth.authenticated ? "本期暂无已记录建议号，点击“生成建议号”" : "登录后可直接查看本期已记录建议号";
+    }
+    return;
+  }
+
+  const currentTickets = records
+    .filter((item) => item.type === "ticket" && item.baseIssue === latestIssue)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .slice(0, TICKET_BATCH_SIZE)
+    .map(recordToSavedTicket);
+
+  if (!currentTickets.length) {
+    if (!state.tickets.length) {
+      els.tickets.classList.add("empty-state");
+      els.tickets.textContent = "本期暂无已记录建议号，点击“生成建议号”";
+      els.ticketMode.textContent = strategyLabels[els.strategySelect.value];
+    }
+    return;
+  }
+
+  renderTickets(currentTickets);
+  els.ticketMode.textContent = `本期已记录 ${Math.min(currentTickets.length, TICKET_BATCH_SIZE)} 注`;
+}
+
 function renderLatest() {
   const latest = state.draws[0];
   if (!latest) return;
   const shape = getDrawShape(latest, state.draws[1]);
-  els.latestIssue.textContent = latest.issue ? `第 ${latest.issue} 期` : "最新";
-  els.latestBalls.innerHTML = [...latest.red.map((item) => ball(item)), ball(latest.blue, "blue")].join("");
-  els.latestMeta.innerHTML = `
+  const issueText = latest.issue ? `第 ${latest.issue} 期` : "最新";
+  const ballsHtml = [...latest.red.map((item) => ball(item)), ball(latest.blue, "blue")].join("");
+  const metaHtml = `
     <dt>开奖日期</dt><dd>${escapeHtml(latest.date || "--")}</dd>
     <dt>数据源</dt><dd>${escapeHtml(latest.source || "cwl.gov.cn")}</dd>
     <dt>红球和值</dt><dd>${shape.sum}</dd>
     <dt>跨度 / AC</dt><dd>${shape.span} / ${shape.ac}</dd>
   `;
-  els.latestActions.classList.remove("muted");
-  els.latestActions.innerHTML = copyButton(latest);
+  const actionsHtml = copyButton(latest);
+  setTextPair(els.latestIssue, els.latestIssueMobile, issueText);
+  setHtmlPair(els.latestBalls, els.latestBallsMobile, ballsHtml);
+  setHtmlPair(els.latestMeta, els.latestMetaMobile, metaHtml);
+  setMutedStatePair(els.latestActions, els.latestActionsMobile, false);
+  setHtmlPair(els.latestActions, els.latestActionsMobile, actionsHtml);
 }
 
 function renderSummary() {
@@ -202,23 +594,22 @@ function renderAdvice() {
   const zoneTotal = a.shape.zones.reduce((sum, value) => sum + value, 0) || 1;
   const oddTotal = a.shape.parity.odd + a.shape.parity.even || 1;
   const sizeTotal = a.shape.size.big + a.shape.size.small || 1;
-  const longMiss = a.coldReds.slice(0, 5).map(formatMissItem).join(" ");
-  const trends = a.trendReds.slice(0, 6).map((item) => item.number).join(" ");
-  const blues = a.hotBlues.map((item) => `${item.number}(${item.miss})`).join(" ");
+  const longMiss = a.coldReds.slice(0, 3).map(formatMissItem).join(" ");
+  const trends = a.trendReds.slice(0, 4).map((item) => item.number).join(" ");
+  const blues = a.hotBlues.slice(0, 3).map((item) => `${item.number}(${item.miss})`).join(" ");
   const quantiles = a.missQuantiles || { p75: 0, p90: 0 };
-  const alerts = (a.missAlerts || []).map(formatMissItem).join(" ") || "无";
+  const alerts = (a.missAlerts || []).slice(0, 3).map(formatMissItem).join(" ") || "无";
 
-  els.confidenceText.textContent = `近 ${a.recentWindow} 期`;
-  els.adviceList.innerHTML = [
-    `红球三区占比 ${a.shape.zones.map((value) => pct(value, zoneTotal)).join("% / ")}%，建议三段都有覆盖。`,
-    `奇偶 ${pct(a.shape.parity.odd, oddTotal)}% / ${pct(a.shape.parity.even, oddTotal)}%，大小 ${pct(a.shape.size.big, sizeTotal)}% / ${pct(a.shape.size.small, sizeTotal)}%。`,
-    `综合趋势红球：${trends}；可和长遗漏号 ${longMiss} 做少量搭配。`,
-    `平均跨度 ${a.shape.spanAverage}，平均 AC ${a.shape.acAverage}，012 路常见形态 ${a.shape.common012 || "--"}。`,
-    `遗漏分位 P75=${quantiles.p75} / P90=${quantiles.p90}；超阈号码：${alerts}（⚠ 超 P75，⚠️ 超 P90）。`,
-    `蓝球近期关注：${blues}；蓝球更适合分组追踪，不适合一次铺满。`
+  const confidenceText = `近 ${a.recentWindow} 期`;
+  const adviceHtml = [
+    `三区 ${a.shape.zones.map((value) => pct(value, zoneTotal)).join("% / ")}%，奇偶 ${pct(a.shape.parity.odd, oddTotal)} / ${pct(a.shape.parity.even, oddTotal)}，大小 ${pct(a.shape.size.big, sizeTotal)} / ${pct(a.shape.size.small, sizeTotal)}。`,
+    `趋势红球 ${trends}；长遗漏 ${longMiss || "无"}；跨度 ${a.shape.spanAverage} / AC ${a.shape.acAverage}。`,
+    `遗漏分位 P75=${quantiles.p75} P90=${quantiles.p90}；预警 ${alerts}；蓝球关注 ${blues}。`
   ]
     .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join("");
+  setTextPair(els.confidenceText, els.confidenceTextMobile, confidenceText);
+  setHtmlPair(els.adviceList, els.adviceListMobile, adviceHtml);
 }
 
 function renderShape() {
@@ -323,7 +714,7 @@ function renderMetricDashboard() {
   ].join("");
 
   els.classificationList.innerHTML = (data.series || [])
-    .slice(0, 10)
+    .slice(0, 6)
     .map(
       (item) => `
         <div class="classification-row">
@@ -353,9 +744,9 @@ function renderAnalysis() {
 }
 
 function renderTickets(tickets) {
-  state.tickets = tickets;
+  state.tickets = tickets.slice(0, TICKET_BATCH_SIZE);
   els.tickets.classList.remove("empty-state");
-  els.tickets.innerHTML = tickets
+  els.tickets.innerHTML = state.tickets
     .map(
       (ticket, index) => `
       <div class="ticket">
@@ -363,37 +754,61 @@ function renderTickets(tickets) {
           <span>建议 ${index + 1}</span>
           <span>${escapeHtml(strategyLabels[ticket.kind] || ticket.kind)} · ${escapeHtml(ticket.score)} 分</span>
         </div>
-        <div class="ball-row">
-          ${ticket.reds.map((item) => ball(item, "red", true)).join("")}
-          ${ball(ticket.blue, "blue", true)}
+        <div class="ticket-inline-row">
+          <div class="ball-row">
+            ${ticket.reds.map((item) => ball(item, "red", true)).join("")}
+            ${ball(ticket.blue, "blue", true)}
+          </div>
+          <div class="ticket-mini-actions">
+            ${copyButton(ticket, "mini-button")}
+            <button class="small-button mini-button" data-favorite="${index}" type="button">收藏</button>
+          </div>
         </div>
         <p>${escapeHtml(ticket.reason)}</p>
-        <div class="ticket-actions">
-          ${copyButton(ticket)}
-          <button class="small-button" data-favorite="${index}" type="button">收藏</button>
-        </div>
       </div>
     `
     )
     .join("");
 }
 
-function generateTickets() {
+async function replaceCurrentIssueTicketRecords() {
+  const latestIssue = state.draws[0]?.issue || "";
+  const records = state.records?.records || [];
+  if (!latestIssue || !state.auth.authenticated || !state.auth.user) return;
+
+  const currentIssueTickets = records.filter((item) => item.type === "ticket" && item.baseIssue === latestIssue);
+  if (!currentIssueTickets.length) return;
+
+  await Promise.all(
+    currentIssueTickets.map((item) => requestJson(`/api/records?id=${encodeURIComponent(item.id)}`, { method: "DELETE" }))
+  );
+}
+
+async function generateTickets({ replaceCurrentIssue = false } = {}) {
   if (!state.analysis) {
     setStatus("请先获取开奖数据", "没有历史样本时无法生成建议号", "warn");
     return;
   }
   const selected = els.strategySelect.value;
-  const modes =
-    selected === "balanced"
-      ? ["balanced", "balanced", "hot", "cold", "blue", "balanced"]
-      : [selected, selected, selected, "balanced", "hot", "cold"];
-  const tickets = modes.map((mode) => generateTicket(state.analysis, mode, state.community));
-  renderTickets(tickets);
-  saveRecords(tickets.map((ticket) => toRecord(ticket, "ticket")));
-  runBacktest(selected);
-  els.ticketMode.textContent = strategyLabels[selected];
-  setStatus("已生成建议号", "建议号来自历史分布权重、形态约束和策略回测，仅供参考。");
+  setBusy(true);
+  try {
+    const tickets = generateTicketBatch(selected, TICKET_BATCH_SIZE);
+    renderTickets(tickets);
+    if (replaceCurrentIssue) await replaceCurrentIssueTicketRecords();
+    const saveResult = await saveRecords(tickets.map((ticket) => toRecord(ticket, "ticket")));
+    runBacktest(selected);
+    els.ticketMode.textContent = `${strategyLabels[selected]} · ${TICKET_BATCH_SIZE} 注`;
+    if (saveResult?.ok) {
+      setStatus("已生成建议号", `当前按 ${TICKET_BATCH_SIZE} 注一批输出，可点击“刷新重生成”快速换一批。`);
+    } else if (saveResult?.authRequired) {
+      setStatus("已生成建议号", `当前未登录，仅本地展示 ${TICKET_BATCH_SIZE} 注；登录后可刷新重生成并自动保存。`, "warn");
+    }
+  } catch (error) {
+    syncAuth(error?.data);
+    setStatus("建议号生成失败", error.message, "warn");
+  } finally {
+    setBusy(false);
+  }
 }
 
 function runBacktest(kind) {
@@ -422,24 +837,106 @@ function addFavorite(ticket) {
   setStatus("已收藏号码", key);
 }
 
-function renderFavorites() {
-  els.favoriteCount.textContent = `${state.favorites.length} 注`;
-  if (!state.favorites.length) {
-    els.favoritesPanel.classList.add("muted");
-    els.favoritesPanel.textContent = "暂无收藏";
+function renderTicketCollection(panel, emptyText, tickets) {
+  if (!panel) return;
+  if (!tickets.length) {
+    panel.classList.add("muted");
+    panel.textContent = emptyText;
     return;
   }
-  els.favoritesPanel.classList.remove("muted");
-  els.favoritesPanel.innerHTML = state.favorites
+  panel.classList.remove("muted");
+  panel.innerHTML = tickets
     .map(
-      (ticket) => `
+      (ticket) => {
+        const statusText =
+          ticket.status === "won" ? `已中奖 · ${ticket.hit?.prize?.amountText || "待同步"}` : ticket.status === "lost" ? "未中奖 · ¥0" : "待开奖";
+        const detailText = ticket.hit
+          ? `生成基准 ${ticket.baseIssue || "--"}，核对 ${ticket.hit.issue || "--"}，命中 ${ticket.hit.hitText}，${ticket.hit.prize?.label || "未中奖"}`
+          : `生成基准 ${ticket.baseIssue || "--"}，等待下一期开奖后自动核对中奖和金额`;
+        return `
       <div class="ticket">
-        <div class="ticket-head"><span>${escapeHtml(strategyLabels[ticket.kind] || ticket.kind)}</span><span>${escapeHtml(ticket.savedAt)}</span></div>
+        <div class="ticket-head"><span>${escapeHtml(strategyLabels[ticket.kind] || ticket.kind || "未标注")}</span><span>${escapeHtml(ticket.savedAt || "")}</span></div>
         <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
+        <p>${escapeHtml(detailText)}</p>
         <div class="ticket-actions">${copyButton(ticket)}</div>
+        <div class="ticket-result-row">
+          ${hitBadge(ticket.hit)}
+          <span class="ticket-result-text">${escapeHtml(statusText)}</span>
+        </div>
+      </div>
+    `;
+      }
+    )
+    .join("");
+}
+
+function uniqueIssueOptions(records) {
+  return Array.from(new Set(records.map((item) => item.baseIssue).filter(Boolean))).sort((a, b) => Number(b) - Number(a));
+}
+
+function syncIssueFilterOptions(select, records, selectedValue) {
+  if (!select) return;
+  const issues = uniqueIssueOptions(records);
+  const options = [`<option value="">全部期数</option>`]
+    .concat(issues.map((issue) => `<option value="${escapeHtml(issue)}">第 ${escapeHtml(issue)} 期</option>`))
+    .join("");
+  select.innerHTML = options;
+  select.value = issues.includes(selectedValue) ? selectedValue : "";
+}
+
+function renderFavorites() {
+  const favoriteSourceRecords = (state.records?.records || []).filter((item) => item.type === "favorite");
+  syncIssueFilterOptions(els.favoriteIssueFilter, favoriteSourceRecords, state.filters.favoriteIssue);
+  const filteredFavoriteRecords = favoriteSourceRecords
+    .filter((item) => !state.filters.favoriteIssue || item.baseIssue === state.filters.favoriteIssue)
+    .slice(0, 12);
+  const favoriteRecords = filteredFavoriteRecords.map(recordToDisplayTicket);
+  const tickets = favoriteRecords?.length ? favoriteRecords : state.favorites;
+  const countText = `${tickets.length} 注`;
+  if (els.favoriteCount) els.favoriteCount.textContent = countText;
+  if (els.favoriteCountTab) els.favoriteCountTab.textContent = countText;
+  renderTicketCollection(els.favoritesPanel, state.auth.authenticated ? "暂无收藏" : "登录后可查看收藏记录", tickets);
+  renderTicketCollection(els.favoritesPanelTab, state.auth.authenticated ? "暂无收藏" : "登录后可查看收藏记录", tickets);
+}
+
+function renderSavedManualRecords() {
+  const manualSourceRecords = (state.records?.records || []).filter((item) => item.type === "manual");
+  syncIssueFilterOptions(els.manualIssueFilter, manualSourceRecords, state.filters.manualIssue);
+  const manualRecords = manualSourceRecords
+    .filter((item) => !state.filters.manualIssue || item.baseIssue === state.filters.manualIssue)
+    .slice(0, 12);
+  if (els.manualRecordCount) els.manualRecordCount.textContent = `${manualRecords.length} 注`;
+  if (!els.manualRecordList) return;
+  if (!manualRecords.length) {
+    els.manualRecordList.classList.add("muted");
+    els.manualRecordList.textContent = state.auth.authenticated ? "暂无自选补全记录" : "登录后可查看自选补全记录";
+    return;
+  }
+  els.manualRecordList.classList.remove("muted");
+  els.manualRecordList.innerHTML = manualRecords
+    .map((item) => {
+      const statusText =
+        item.status === "won" ? `已中奖 · ${item.hit?.prize?.amountText || "待同步"}` : item.status === "lost" ? "未中奖 · ¥0" : "待开奖";
+      const detailText = item.hit
+        ? `生成基准 ${item.baseIssue || "--"}，核对 ${item.hit.issue || "--"}，命中 ${item.hit.hitText}，${item.hit.prize?.label || "未中奖"}`
+        : `生成基准 ${item.baseIssue || "--"}，等待下一期开奖后自动核对中奖和金额`;
+      return `
+      <div class="record-row">
+        <div>
+          <strong>${escapeHtml(strategyLabels[item.strategy] || item.strategy || "自选补全")} · ${escapeHtml(formatSavedTime(item.createdAt) || "刚刚")}</strong>
+          <span>${escapeHtml(detailText)}</span>
+        </div>
+        <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
+        <div class="record-actions">
+          ${hitBadge(item.hit)}
+          ${copyButton(item)}
+        </div>
+        <div class="ticket-result-row">
+          <span class="ticket-result-text">${escapeHtml(statusText)}</span>
+        </div>
       </div>
     `
-    )
+    })
     .join("");
 }
 
@@ -494,9 +991,10 @@ async function completeManualTicket() {
       blue: state.manual.blue,
       strategy: els.manualStrategySelect.value
     });
+    await saveRecords([toRecord(state.manual.completion.ticket, "manual")]);
     renderManualResult();
     renderAnalysis();
-    setStatus("已补全自选号码", "当前号码已同步标注到红蓝分布和指标走势图。");
+    setStatus("已补全自选号码", "当前号码已同步标注到红蓝分布和指标走势图。", "ok", "top");
   } catch (error) {
     setStatus("自选补全失败", error.message, "warn");
   }
@@ -542,14 +1040,24 @@ function renderManualResult() {
 
 function renderCommunity() {
   const data = state.community;
-  if (!data) return;
-  els.communityCount.textContent = `${data.count || 0} 条`;
+  if (!data) {
+    setTextPair(els.communityCount, els.communityCountMobile, "0 条");
+    els.communitySourceText.textContent = "待抓取";
+    setMutedStatePair(els.communityResults, els.communityResultsMobile, true);
+    setTextPair(els.communityResults, els.communityResultsMobile, "尚未抓取");
+    els.communityAggregate.classList.add("muted");
+    els.communityAggregate.textContent = "暂无共振号码";
+    els.sourceScoreScope.textContent = "待拉取";
+    els.sourceScores.classList.add("muted");
+    els.sourceScores.textContent = "暂无数据";
+    return;
+  }
+  setTextPair(els.communityCount, els.communityCountMobile, `${data.count || 0} 条`);
   els.communitySourceText.textContent = `${data.sources?.length || 0} 个来源`;
 
   if (data.recommendations?.length) {
-    els.communityResults.classList.remove("muted");
-    els.communityResults.innerHTML = data.recommendations
-      .slice(0, 6)
+    const recommendationsHtml = data.recommendations
+      .slice(0, 2)
       .map(
         (item) => `
         <div class="community-item">
@@ -563,17 +1071,18 @@ function renderCommunity() {
       `
       )
       .join("");
+    setMutedStatePair(els.communityResults, els.communityResultsMobile, false);
+    setHtmlPair(els.communityResults, els.communityResultsMobile, recommendationsHtml);
   } else {
-    els.communityResults.classList.add("muted");
-    els.communityResults.textContent = data.errors?.length
-      ? "未识别到号码，可能页面需要登录、强反爬或结构已变。"
-      : "暂无数据";
+    const emptyText = data.errors?.length ? "未识别到号码，可能页面需要登录、强反爬或结构已变。" : "暂无数据";
+    setMutedStatePair(els.communityResults, els.communityResultsMobile, true);
+    setTextPair(els.communityResults, els.communityResultsMobile, emptyText);
   }
 
   if (data.aggregate?.length) {
     els.communityAggregate.classList.remove("muted");
     els.communityAggregate.innerHTML = data.aggregate
-      .slice(0, 6)
+      .slice(0, 4)
       .map(
         (item) => `
         <div class="ticket">
@@ -609,6 +1118,7 @@ function renderSourceScores() {
   }
   els.sourceScores.classList.remove("muted");
   els.sourceScores.innerHTML = scores
+    .slice(0, 5)
     .map(
       (item) => `
       <div class="score-row">
@@ -625,17 +1135,25 @@ function renderSourceScores() {
 }
 
 async function saveRecords(records) {
-  if (!records.length) return;
+  if (!records.length) return { ok: true };
   try {
     await postJson("/api/records", { records });
     await fetchRecords();
+    return { ok: true };
   } catch (error) {
+    syncAuth(error?.data);
+    if (isAuthRequired(error)) {
+      setStatus("请先登录", "登录后才能记录每次选号，并在下期开奖后自动核对中奖。", "warn");
+      return { ok: false, authRequired: true };
+    }
     console.warn("记录保存失败", error);
+    setStatus("记录保存失败", error.message, "warn");
+    return { ok: false, error };
   }
 }
 
 function recordTypeLabel(type) {
-  return type === "community" ? "社区" : type === "favorite" ? "收藏" : "建议";
+  return type === "community" ? "社区" : type === "favorite" ? "收藏" : type === "manual" ? "自选" : "建议";
 }
 
 function renderRecords() {
@@ -643,30 +1161,37 @@ function renderRecords() {
   const records = data?.records || [];
   const summary = data?.summary || {};
 
+  syncAuth(data);
+  renderAuth();
+
   els.recordScope.textContent = summary.checked ? `${summary.checked} 条已核对` : "待核对";
   if (!records.length) {
     els.recordSummary.classList.add("muted");
-    els.recordSummary.textContent = "暂无记录";
+    els.recordSummary.textContent = state.auth.authenticated ? "暂无记录" : "登录后可查看个人选号记录与中奖核对";
     els.recordList.classList.add("muted");
-    els.recordList.textContent = "暂无历史推荐";
+    els.recordList.textContent = state.auth.authenticated ? "暂无历史推荐" : "当前是访客模式，尚未绑定个人选号历史。";
   } else {
     els.recordSummary.classList.remove("muted");
     els.recordSummary.innerHTML = [
       metric("记录总数", summary.total || 0, `开奖源 ${data.drawSource || "--"}`),
       metric("平均红球", summary.avgRed ?? "0.00", `${summary.checked || 0} 条已核对`),
       metric("蓝球命中率", `${summary.blueRate || 0}%`, `${summary.blueHits || 0}/${summary.checked || 0}`),
-      metric("较好命中", summary.strongHits || 0, summary.best ? `最佳 ${summary.best.hitText}` : "暂无")
+      metric(
+        "中奖注数",
+        summary.winCount || 0,
+        summary.best ? `最佳 ${summary.best.prizeLabel || "命中"} · ${summary.best.prizeAmountText || summary.best.hitText}` : "暂无中奖"
+      )
     ].join("");
 
     els.recordList.classList.remove("muted");
     els.recordList.innerHTML = records
-      .slice(0, 10)
+      .slice(0, 5)
       .map(
         (item) => `
         <div class="record-row">
           <div>
             <strong>${escapeHtml(recordTypeLabel(item.type))} · ${escapeHtml(strategyLabels[item.strategy] || item.sourceName || item.strategy || "未标注")}</strong>
-            <span>生成基准 ${escapeHtml(item.baseIssue || "--")}，核对 ${escapeHtml(item.hit?.issue || "--")}</span>
+            <span>生成基准 ${escapeHtml(item.baseIssue || "--")}，核对 ${escapeHtml(item.hit?.issue || "--")}，状态 ${escapeHtml(item.status === "pending" ? "待开奖" : item.status === "won" ? "已中奖" : "未中奖")}</span>
           </div>
           <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
           <div class="record-actions">
@@ -679,34 +1204,9 @@ function renderRecords() {
       .join("");
   }
 
-  renderPerformance();
-}
-
-function renderPerformance() {
-  const rows = state.records?.sourcePerformance || [];
-  els.performanceScope.textContent = rows.length ? `${rows.length} 个来源` : "待积累";
-  if (!rows.length) {
-    els.performanceList.classList.add("muted");
-    els.performanceList.textContent = "暂无战绩";
-    return;
-  }
-
-  els.performanceList.classList.remove("muted");
-  els.performanceList.innerHTML = rows
-    .slice(0, 8)
-    .map(
-      (item) => `
-      <div class="score-row">
-        <div>
-          <strong>${escapeHtml(item.sourceName)}</strong>
-          <span>${escapeHtml(`${item.checked} 条核对，均红 ${item.avgRed}，蓝球 ${item.blueRate}%，最佳 ${item.bestHit}`)}</span>
-        </div>
-        <div class="score-bar"><i style="width:${percentWidth(item.performanceScore)}%"></i></div>
-        <b>${escapeHtml(item.performanceScore)}</b>
-      </div>
-    `
-    )
-    .join("");
+  syncCurrentIssueTicketsFromRecords();
+  renderFavorites();
+  renderSavedManualRecords();
 }
 
 async function fetchRecords() {
@@ -714,6 +1214,7 @@ async function fetchRecords() {
     state.records = await getJson(`/api/records?limit=${Number(els.limitInput.value || 240)}`);
     renderRecords();
   } catch (error) {
+    syncAuth(error?.data);
     console.warn("记录读取失败", error);
   }
 }
@@ -788,6 +1289,7 @@ async function fetchDraws(refresh = false) {
     state.draws = data.draws || [];
     state.analysis = analyze(state.draws);
     renderAnalysis();
+    syncCurrentIssueTicketsFromRecords();
     await fetchMetrics();
     const detail =
       data.source === "official"
@@ -806,12 +1308,13 @@ async function fetchCommunity() {
   setBusy(true);
   setStatus("正在拉取社区推荐", "解析公开页面中的红蓝球组合");
   try {
-    const urls = els.sourceUrls.value
+    const urls = readSourceInput()
       .split(/\n+/)
       .map((item) => item.trim())
       .filter(Boolean)
       .join("\n");
-    state.community = await getJson(`/api/community?urls=${encodeURIComponent(urls)}`);
+    syncSourceInputs(urls);
+    state.community = normalizeCommunitySnapshot(await getJson(`/api/community?urls=${encodeURIComponent(urls)}`));
     renderCommunity();
     const communityRecords = (state.community.recommendations || []).slice(0, 80).map((item) => ({
       type: "community",
@@ -835,15 +1338,30 @@ async function fetchCommunity() {
 
 function wireEvents() {
   els.fetchDrawsBtn.addEventListener("click", () => fetchDraws(true));
-  els.generateBtn.addEventListener("click", generateTickets);
+  els.generateBtn.addEventListener("click", () => generateTickets());
+  els.refreshTicketsBtn?.addEventListener("click", () => generateTickets({ replaceCurrentIssue: true }));
   els.communityBtn.addEventListener("click", fetchCommunity);
   els.exportBtn.addEventListener("click", downloadCsv);
+  els.registerBtn?.addEventListener("click", registerUser);
+  els.loginBtn?.addEventListener("click", loginUser);
+  els.logoutBtn?.addEventListener("click", logoutUser);
+  els.statusDismissBtn?.addEventListener("click", () => {
+    els.statusBand.hidden = true;
+  });
   els.strategySelect.addEventListener("change", () => {
     els.ticketMode.textContent = strategyLabels[els.strategySelect.value];
   });
   els.manualStrategySelect.addEventListener("change", completeManualTicket);
   els.completePickBtn.addEventListener("click", completeManualTicket);
   els.clearPickBtn.addEventListener("click", clearManualSelection);
+  els.favoriteIssueFilter?.addEventListener("change", (event) => {
+    state.filters.favoriteIssue = event.currentTarget?.value || "";
+    renderFavorites();
+  });
+  els.manualIssueFilter?.addEventListener("change", (event) => {
+    state.filters.manualIssue = event.currentTarget?.value || "";
+    renderSavedManualRecords();
+  });
   document.addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-copy-ticket]");
     if (!trigger) return;
@@ -861,12 +1379,26 @@ function wireEvents() {
 
   els.manualRedGrid.addEventListener("click", onManualRedClick);
   els.manualBlueGrid.addEventListener("click", onManualBlueClick);
+  [els.sourceUrls, els.sourceUrlsMobile].filter(Boolean).forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const value = event.currentTarget?.value || "";
+      [els.sourceUrls, els.sourceUrlsMobile].filter(Boolean).forEach((node) => {
+        if (node !== event.currentTarget) node.value = value;
+      });
+    });
+  });
 }
 
 export function initDashboard() {
-  els.sourceUrls.value = defaultSources.join("\n");
+  syncSourceInputs(defaultSources.join("\n"));
+  renderAuth();
   renderManualPicker();
   renderManualResult();
+  renderCommunity();
+  els.tickets.textContent = "登录后可直接查看本期已记录建议号";
+  wireTabs();
   wireEvents();
-  fetchDraws(false);
+  bootstrapDashboardData({ refreshAuth, restoreSavedCommunitySnapshot, fetchDraws }).catch((error) => {
+    console.warn("页面初始化失败", error);
+  });
 }

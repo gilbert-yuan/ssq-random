@@ -99,6 +99,18 @@ async function migrate() {
           created_at TIMESTAMPTZ NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS community_snapshots (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          sources_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          recommendations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          aggregate_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          source_scores_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          errors_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          count_value INTEGER NOT NULL DEFAULT 0,
+          fetched_at TIMESTAMPTZ NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS draw_indicators (
           issue TEXT PRIMARY KEY REFERENCES draws(issue) ON DELETE CASCADE,
           draw_date TEXT NOT NULL DEFAULT '',
@@ -150,6 +162,8 @@ async function migrate() {
           ON records (user_id, type, ticket_key, base_issue, strategy, source_name);
         CREATE INDEX IF NOT EXISTS idx_records_order
           ON records (user_id, pinned_at DESC NULLS LAST, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_community_snapshots_updated
+          ON community_snapshots (updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_draws_issue_order
           ON draws ((issue::BIGINT) DESC);
         CREATE INDEX IF NOT EXISTS idx_indicators_issue_order
@@ -252,6 +266,25 @@ function rowToIndicator(row) {
     typeLabel: row.type_label,
     regressionSum: row.regression_sum,
     regressionResidual: row.regression_residual
+  };
+}
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  return JSON.parse(value);
+}
+
+function rowToCommunitySnapshot(row) {
+  if (!row) return null;
+  return {
+    fetchedAt: timestamp(row.fetched_at),
+    sources: parseJsonArray(row.sources_json),
+    count: Number(row.count_value || 0),
+    recommendations: parseJsonArray(row.recommendations_json),
+    aggregate: parseJsonArray(row.aggregate_json),
+    sourceScores: parseJsonArray(row.source_scores_json),
+    errors: parseJsonArray(row.errors_json)
   };
 }
 
@@ -385,6 +418,57 @@ async function readRecords(limit = 3000, userId = DEFAULT_USER_ID) {
     [userId, limit]
   );
   return result.rows.map(rowToRecord);
+}
+
+async function upsertCommunitySnapshot(snapshot, userId) {
+  if (!snapshot || !userId) return null;
+  const fetchedAt = snapshot.fetchedAt || new Date().toISOString();
+  const updatedAt = new Date().toISOString();
+  const result = await query(
+    `
+      INSERT INTO community_snapshots (
+        user_id, sources_json, recommendations_json, aggregate_json, source_scores_json,
+        errors_json, count_value, fetched_at, updated_at
+      )
+      VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9)
+      ON CONFLICT(user_id) DO UPDATE SET
+        sources_json = EXCLUDED.sources_json,
+        recommendations_json = EXCLUDED.recommendations_json,
+        aggregate_json = EXCLUDED.aggregate_json,
+        source_scores_json = EXCLUDED.source_scores_json,
+        errors_json = EXCLUDED.errors_json,
+        count_value = EXCLUDED.count_value,
+        fetched_at = EXCLUDED.fetched_at,
+        updated_at = EXCLUDED.updated_at
+      RETURNING *
+    `,
+    [
+      userId,
+      JSON.stringify(snapshot.sources || []),
+      JSON.stringify(snapshot.recommendations || []),
+      JSON.stringify(snapshot.aggregate || []),
+      JSON.stringify(snapshot.sourceScores || []),
+      JSON.stringify(snapshot.errors || []),
+      Number(snapshot.count || 0),
+      fetchedAt,
+      updatedAt
+    ]
+  );
+  return rowToCommunitySnapshot(result.rows[0]);
+}
+
+async function readCommunitySnapshot(userId) {
+  if (!userId) return null;
+  const result = await query(
+    `
+      SELECT *
+      FROM community_snapshots
+      WHERE user_id = $1
+      LIMIT 1
+    `,
+    [userId]
+  );
+  return rowToCommunitySnapshot(result.rows[0]);
 }
 
 async function deleteRecord(id, userId = DEFAULT_USER_ID) {
@@ -542,12 +626,14 @@ module.exports = {
   databasePath,
   deleteRecord,
   ensureDatabaseReady: migrate,
+  readCommunitySnapshot,
   readDraws,
   readIndicatorIssues,
   readIndicators,
   readRecords,
   query,
   setRecordPinned,
+  upsertCommunitySnapshot,
   upsertDraws,
   upsertIndicators,
   withClient

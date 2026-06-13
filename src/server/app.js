@@ -39,7 +39,7 @@ function createApp() {
         return;
       }
       if (reqUrl.pathname === "/api/community") {
-        await handleCommunity(reqUrl, res);
+        await handleCommunity(req, reqUrl, res);
         return;
       }
       if (reqUrl.pathname === "/api/records") {

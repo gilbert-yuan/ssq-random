@@ -79,6 +79,39 @@ async function checkLauncherScripts() {
   }
 }
 
+async function checkDashboardBootstrapOrder() {
+  const bootstrapSource = await fs.promises.readFile(path.join(__dirname, "..", "public", "js", "pages", "bootstrap.js"), "utf8");
+  const bootstrapModuleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(bootstrapSource)}`;
+  const { bootstrapDashboardData } = await import(bootstrapModuleUrl);
+  const calls = [];
+  const refreshAuth = async () => {
+    calls.push("refreshAuth:start");
+    await Promise.resolve();
+    calls.push("refreshAuth:end");
+  };
+  const restoreSavedCommunitySnapshot = async () => {
+    calls.push("restore:start");
+    await Promise.resolve();
+    calls.push("restore:end");
+  };
+  const fetchDraws = async (refresh) => {
+    calls.push(`fetch:${String(refresh)}`);
+    await Promise.resolve();
+  };
+
+  await bootstrapDashboardData({ refreshAuth, restoreSavedCommunitySnapshot, fetchDraws });
+
+  const refreshEndIndex = calls.indexOf("refreshAuth:end");
+  const restoreStartIndex = calls.indexOf("restore:start");
+  const fetchIndex = calls.indexOf("fetch:false");
+  if (refreshEndIndex === -1 || restoreStartIndex === -1 || fetchIndex === -1) {
+    throw new Error("dashboard bootstrap did not invoke all required steps");
+  }
+  if (restoreStartIndex < refreshEndIndex || fetchIndex < refreshEndIndex) {
+    throw new Error("dashboard bootstrap must wait for auth before restoring community snapshot and fetching draws");
+  }
+}
+
 async function waitForServer(port, timeoutMs = 15000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -183,6 +216,7 @@ async function main() {
   await Promise.all(jsFiles.map(checkSyntax));
   await Promise.all(CHECK_FILES.filter((file) => file.endsWith(".json")).map(checkJson));
   await checkLauncherScripts();
+  await checkDashboardBootstrapOrder();
 
   await withServer(async (port) => {
     await checkEndpoint(port, "/", (text) => {
@@ -190,6 +224,9 @@ async function main() {
       if (!text.includes("window.__assetVersion")) throw new Error("home page must expose an asset version");
       if (!text.includes('/styles.css?v=')) throw new Error("home page must version styles.css");
       if (!text.includes('/app.js?v=')) throw new Error("home page must version app.js");
+      if (!text.includes('id="manualPickResult" class="manual-ticket-result muted"')) {
+        throw new Error("manual pick result must use a dedicated single-ticket container");
+      }
     });
     for (const assetPath of ["/app.js", "/js/pages/dashboard.js", "/styles.css"]) {
       const response = await fetchEndpoint(port, assetPath);
@@ -207,6 +244,12 @@ async function main() {
       const payload = JSON.parse(text);
       if (!payload.ok || !Array.isArray(payload.records)) {
         throw new Error("records endpoint returned an invalid payload");
+      }
+    });
+    await checkEndpoint(port, "/api/community?saved=1", (text) => {
+      const payload = JSON.parse(text);
+      if (!payload.ok || !Object.prototype.hasOwnProperty.call(payload, "snapshot")) {
+        throw new Error("community saved endpoint returned an invalid payload");
       }
     });
     await checkEndpoint(port, "/api/metrics?limit=30", (text) => {
@@ -238,6 +281,14 @@ async function main() {
       throw new Error("complete-ticket endpoint returned an invalid ticket");
     }
     const authCookie = await registerSmokeUser(port);
+    const savedCommunity = await fetch(`http://127.0.0.1:${port}/api/community?saved=1`, {
+      headers: { Cookie: authCookie }
+    });
+    if (!savedCommunity.ok) throw new Error(`community saved auth endpoint returned HTTP ${savedCommunity.status}`);
+    const savedCommunityPayload = await savedCommunity.json();
+    if (!savedCommunityPayload.ok || savedCommunityPayload.authenticated !== true) {
+      throw new Error("community saved auth endpoint returned an invalid auth payload");
+    }
     const testRecordStamp = Date.now();
     const testRecordId = `smoke-${testRecordStamp}`;
     const saveRecord = await fetch(`http://127.0.0.1:${port}/api/records`, {
@@ -255,6 +306,13 @@ async function main() {
       })
     });
     if (!saveRecord.ok) throw new Error(`record save returned HTTP ${saveRecord.status}`);
+    const authedRecords = await fetch(`http://127.0.0.1:${port}/api/records?limit=30`, {
+      headers: { Cookie: authCookie }
+    });
+    const authedRecordsPayload = await authedRecords.json();
+    if (!authedRecords.ok || !authedRecordsPayload.authenticated || !authedRecordsPayload.user?.id) {
+      throw new Error("authenticated records endpoint returned an invalid payload");
+    }
     const pinRecord = await fetch(`http://127.0.0.1:${port}/api/records`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Cookie: authCookie },

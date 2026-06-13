@@ -5,9 +5,25 @@ const {
   readSources,
   scoreSources
 } = require("./community");
+const { resolveRequestUser } = require("./auth");
+const { readCommunitySnapshot, upsertCommunitySnapshot } = require("./database");
 const { sendJson } = require("./http");
 
-async function handleCommunity(reqUrl, res) {
+async function handleCommunity(req, reqUrl, res) {
+  const authState = await resolveRequestUser(req);
+  const userId = authState.user?.id || "";
+
+  if (req.method === "GET" && reqUrl.searchParams.get("saved") === "1") {
+    const snapshot = userId ? await readCommunitySnapshot(userId) : null;
+    sendJson(res, 200, {
+      ok: true,
+      authenticated: Boolean(userId),
+      user: authState.user || null,
+      snapshot: snapshot || null
+    });
+    return;
+  }
+
   const limitedSources = await readSources(reqUrl.searchParams);
   const recommendations = [];
   const errors = [];
@@ -21,7 +37,8 @@ async function handleCommunity(reqUrl, res) {
     }
   }
 
-  sendJson(res, 200, {
+  const payload = {
+    ok: true,
     fetchedAt: new Date().toISOString(),
     sources: limitedSources,
     count: recommendations.length,
@@ -29,7 +46,13 @@ async function handleCommunity(reqUrl, res) {
     aggregate: aggregateRecommendations(recommendations),
     sourceScores: scoreSources(limitedSources, recommendations, errors),
     errors
-  });
+  };
+
+  if (userId) {
+    await upsertCommunitySnapshot(payload, userId);
+  }
+
+  sendJson(res, 200, payload);
 }
 
 module.exports = {

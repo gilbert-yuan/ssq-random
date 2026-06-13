@@ -1,7 +1,8 @@
 export const state = {
   auth: {
     authenticated: null,
-    user: null
+    user: null,
+    busy: false
   },
   draws: [],
   analysis: null,
@@ -9,6 +10,10 @@ export const state = {
   community: null,
   tickets: [],
   favorites: [],
+  filters: {
+    favoriteIssue: "",
+    manualIssue: ""
+  },
   records: null,
   manual: {
     reds: new Set(),
