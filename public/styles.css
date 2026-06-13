@@ -959,6 +959,11 @@ textarea#sourceUrls {
   min-height: 24px;
 }
 
+.latest-panel #latestBalls,
+.latest-panel #latestBallsMobile {
+  min-height: 0;
+}
+
 .latest-panel .meta-list {
   gap: 5px 10px;
   margin-top: 8px;
@@ -1213,6 +1218,37 @@ textarea#sourceUrls {
   justify-content: flex-end;
 }
 
+.compact-inline-row {
+  align-items: center;
+  gap: 8px;
+}
+
+.compact-inline-row .ball-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.compact-ticket-actions {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.record-ticket-inline-row {
+  align-items: flex-start;
+}
+
+.record-ticket-inline-row .ball-row {
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow: visible;
+}
+
+.record-ticket-actions {
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: flex-start;
+}
+
 .ticket p {
   margin-top: 10px;
   color: var(--ink-soft);
@@ -1253,6 +1289,17 @@ textarea#sourceUrls {
   font-weight: 700;
 }
 
+.ticket-result-text.compact {
+  font-size: 10px;
+}
+
+.hit-badge.compact {
+  min-width: 36px;
+  min-height: 22px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
 .latest-actions {
   margin-top: 6px;
   min-height: 28px;
@@ -1276,6 +1323,12 @@ textarea#sourceUrls {
   padding: 0 9px;
   font-size: 11px;
   box-shadow: 2px 2px 0 var(--border);
+}
+
+.record-ticket-actions .mini-button {
+  min-height: 22px;
+  padding: 0 6px;
+  font-size: 10px;
 }
 
 .mini-button:hover:not(:disabled) {
@@ -1851,6 +1904,11 @@ footer {
 
   .ticket-mini-actions {
     justify-content: flex-start;
+  }
+
+  .record-ticket-inline-row .ball-row,
+  .record-ticket-actions {
+    flex-wrap: wrap;
   }
 
   .bar-chart {

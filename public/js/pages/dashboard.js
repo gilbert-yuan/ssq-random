@@ -1,7 +1,7 @@
 import { getJson, postJson, requestJson } from "../services/api.js";
 import { defaultSources, state, strategyLabels } from "../state.js";
 import { analyze, drawKey, getDrawShape, pct } from "../domain/analysis.js";
-import { generateTicket, runBacktestData } from "../domain/generator.js";
+import { generateTicket } from "../domain/generator.js";
 import { renderBarChart, renderLineChart, renderPositionRows } from "../components/charts.js";
 import { ball, escapeHtml, hitBadge, metric, percentWidth, safeExternalUrl, shapeItem } from "../components/html.js";
 import { renderNumberGrid } from "../components/number-picker.js";
@@ -66,11 +66,7 @@ const els = {
   blueChart: $("#blueChart"),
   shapeStats: $("#shapeStats"),
   shapeScope: $("#shapeScope"),
-  backtestPanel: $("#backtestPanel"),
-  backtestScope: $("#backtestScope"),
-  favoritesPanel: $("#favoritesPanel"),
   favoritesPanelTab: $("#favoritesPanelTab"),
-  favoriteCount: $("#favoriteCount"),
   favoriteCountTab: $("#favoriteCountTab"),
   favoriteIssueFilter: $("#favoriteIssueFilter"),
   sourceScores: $("#sourceScores"),
@@ -133,7 +129,6 @@ function refreshActiveTab(tabId) {
   if (tabId === "picks") {
     renderManualPicker();
     renderManualResult();
-    renderFavorites();
   }
   if (tabId === "my-records") {
     renderFavorites();
@@ -552,19 +547,23 @@ function renderLatest() {
   if (!latest) return;
   const shape = getDrawShape(latest, state.draws[1]);
   const issueText = latest.issue ? `第 ${latest.issue} 期` : "最新";
-  const ballsHtml = [...latest.red.map((item) => ball(item)), ball(latest.blue, "blue")].join("");
+  const ballsHtml = `
+    <div class="ticket-inline-row compact-inline-row">
+      <div class="ball-row">${[...latest.red.map((item) => ball(item)), ball(latest.blue, "blue")].join("")}</div>
+      <div class="ticket-mini-actions compact-ticket-actions">${copyButton(latest, "mini-button")}</div>
+    </div>
+  `;
   const metaHtml = `
     <dt>开奖日期</dt><dd>${escapeHtml(latest.date || "--")}</dd>
     <dt>数据源</dt><dd>${escapeHtml(latest.source || "cwl.gov.cn")}</dd>
     <dt>红球和值</dt><dd>${shape.sum}</dd>
     <dt>跨度 / AC</dt><dd>${shape.span} / ${shape.ac}</dd>
   `;
-  const actionsHtml = copyButton(latest);
   setTextPair(els.latestIssue, els.latestIssueMobile, issueText);
   setHtmlPair(els.latestBalls, els.latestBallsMobile, ballsHtml);
   setHtmlPair(els.latestMeta, els.latestMetaMobile, metaHtml);
-  setMutedStatePair(els.latestActions, els.latestActionsMobile, false);
-  setHtmlPair(els.latestActions, els.latestActionsMobile, actionsHtml);
+  setMutedStatePair(els.latestActions, els.latestActionsMobile, true);
+  setTextPair(els.latestActions, els.latestActionsMobile, "");
 }
 
 function renderSummary() {
@@ -796,7 +795,6 @@ async function generateTickets({ replaceCurrentIssue = false } = {}) {
     renderTickets(tickets);
     if (replaceCurrentIssue) await replaceCurrentIssueTicketRecords();
     const saveResult = await saveRecords(tickets.map((ticket) => toRecord(ticket, "ticket")));
-    runBacktest(selected);
     els.ticketMode.textContent = `${strategyLabels[selected]} · ${TICKET_BATCH_SIZE} 注`;
     if (saveResult?.ok) {
       setStatus("已生成建议号", `当前按 ${TICKET_BATCH_SIZE} 注一批输出，可点击“刷新重生成”快速换一批。`);
@@ -809,19 +807,6 @@ async function generateTickets({ replaceCurrentIssue = false } = {}) {
   } finally {
     setBusy(false);
   }
-}
-
-function runBacktest(kind) {
-  if (!state.draws.length) return;
-  const result = runBacktestData(state.draws, kind, state.community);
-  els.backtestScope.textContent = `${strategyLabels[kind] || kind} · ${result.results.length} 期`;
-  els.backtestPanel.classList.remove("muted");
-  els.backtestPanel.innerHTML = [
-    metric("平均红球", result.avgRed, "逐期滚动回测"),
-    metric("蓝球命中率", `${result.blueRate}%`, `${result.blueHits}/${result.results.length}`),
-    metric("较好命中", result.strongHits, "4 红或 3 红+蓝"),
-    metric("最佳单期", result.best ? `${result.best.redHits}+${result.best.blueHit}` : "--", result.best ? `第 ${result.best.issue} 期` : "暂无")
-  ].join("");
 }
 
 function addFavorite(ticket) {
@@ -854,15 +839,18 @@ function renderTicketCollection(panel, emptyText, tickets) {
           ? `生成基准 ${ticket.baseIssue || "--"}，核对 ${ticket.hit.issue || "--"}，命中 ${ticket.hit.hitText}，${ticket.hit.prize?.label || "未中奖"}`
           : `生成基准 ${ticket.baseIssue || "--"}，等待下一期开奖后自动核对中奖和金额`;
         return `
-      <div class="ticket">
+      <div class="ticket record-ticket">
         <div class="ticket-head"><span>${escapeHtml(strategyLabels[ticket.kind] || ticket.kind || "未标注")}</span><span>${escapeHtml(ticket.savedAt || "")}</span></div>
-        <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
-        <p>${escapeHtml(detailText)}</p>
-        <div class="ticket-actions">${copyButton(ticket)}</div>
-        <div class="ticket-result-row">
-          ${hitBadge(ticket.hit)}
-          <span class="ticket-result-text">${escapeHtml(statusText)}</span>
+        <div class="ticket-inline-row record-ticket-inline-row">
+          <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
+          <div class="ticket-mini-actions record-ticket-actions">
+            ${copyButton(ticket, "mini-button")}
+            <span class="hit-badge compact">${escapeHtml(ticket.hit ? ticket.hit.hitText : "待")}</span>
+            <span class="ticket-result-text compact">${escapeHtml(ticket.status === "won" ? ticket.hit?.prize?.amountText || "待同步" : ticket.status === "lost" ? "¥0" : "待开奖")}</span>
+            <button class="small-button mini-button" data-delete-favorite-record="${escapeHtml(ticket.id)}" type="button">取消</button>
+          </div>
         </div>
+        <p>${escapeHtml(detailText)}</p>
       </div>
     `;
       }
@@ -893,9 +881,7 @@ function renderFavorites() {
   const favoriteRecords = filteredFavoriteRecords.map(recordToDisplayTicket);
   const tickets = favoriteRecords?.length ? favoriteRecords : state.favorites;
   const countText = `${tickets.length} 注`;
-  if (els.favoriteCount) els.favoriteCount.textContent = countText;
   if (els.favoriteCountTab) els.favoriteCountTab.textContent = countText;
-  renderTicketCollection(els.favoritesPanel, state.auth.authenticated ? "暂无收藏" : "登录后可查看收藏记录", tickets);
   renderTicketCollection(els.favoritesPanelTab, state.auth.authenticated ? "暂无收藏" : "登录后可查看收藏记录", tickets);
 }
 
@@ -930,6 +916,7 @@ function renderSavedManualRecords() {
         <div class="record-actions">
           ${hitBadge(item.hit)}
           ${copyButton(item)}
+          <button class="small-button" data-delete-manual-record="${escapeHtml(item.id)}" type="button">删除</button>
         </div>
         <div class="ticket-result-row">
           <span class="ticket-result-text">${escapeHtml(statusText)}</span>
@@ -938,6 +925,31 @@ function renderSavedManualRecords() {
     `
     })
     .join("");
+}
+
+async function deleteManualRecord(recordId) {
+  if (!recordId) return;
+  try {
+    await requestJson(`/api/records?id=${encodeURIComponent(recordId)}`, { method: "DELETE" });
+    await fetchRecords();
+    setStatus("已删除自选记录", "当前这条自选补全号码已从个人记录中移除。");
+  } catch (error) {
+    syncAuth(error?.data);
+    setStatus("删除失败", error.message, "warn");
+  }
+}
+
+async function deleteFavoriteRecord(recordId) {
+  if (!recordId) return;
+  try {
+    await requestJson(`/api/records?id=${encodeURIComponent(recordId)}`, { method: "DELETE" });
+    state.favorites = state.favorites.filter((item) => item.id !== recordId);
+    await fetchRecords();
+    setStatus("已取消收藏", "当前这条收藏号码已从个人记录中移除。");
+  } catch (error) {
+    syncAuth(error?.data);
+    setStatus("取消收藏失败", error.message, "warn");
+  }
 }
 
 function renderManualPicker() {
@@ -1061,12 +1073,14 @@ function renderCommunity() {
       .map(
         (item) => `
         <div class="community-item">
-          <div class="ball-row">
-            ${item.reds.map((red) => ball(red, "red", true)).join("")}
-            ${ball(item.blue, "blue", true)}
+          <div class="ticket-inline-row compact-inline-row">
+            <div class="ball-row">
+              ${item.reds.map((red) => ball(red, "red", true)).join("")}
+              ${ball(item.blue, "blue", true)}
+            </div>
+            <div class="ticket-mini-actions compact-ticket-actions">${copyButton(item, "mini-button")}</div>
           </div>
           <p><a href="${safeExternalUrl(item.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.sourceName)}</a></p>
-          <div class="ticket-actions">${copyButton(item)}</div>
         </div>
       `
       )
@@ -1375,6 +1389,18 @@ function wireEvents() {
     const index = Number(trigger.dataset.favorite);
     const ticket = state.tickets[index];
     if (ticket) addFavorite(ticket);
+  });
+
+  els.manualRecordList?.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-delete-manual-record]");
+    if (!trigger || !els.manualRecordList.contains(trigger)) return;
+    deleteManualRecord(trigger.dataset.deleteManualRecord || "");
+  });
+
+  els.favoritesPanelTab?.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-delete-favorite-record]");
+    if (!trigger || !els.favoritesPanelTab.contains(trigger)) return;
+    deleteFavoriteRecord(trigger.dataset.deleteFavoriteRecord || "");
   });
 
   els.manualRedGrid.addEventListener("click", onManualRedClick);
