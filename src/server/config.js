@@ -4,7 +4,9 @@ const { loadDotEnv } = require("./env-file");
 const ROOT_DIR = path.join(__dirname, "..", "..");
 loadDotEnv(path.join(ROOT_DIR, ".env"));
 
-const PUBLIC_DIR = path.join(ROOT_DIR, "public");
+const NUXT_PUBLIC_DIR = path.join(ROOT_DIR, ".output", "public");
+const LEGACY_PUBLIC_DIR = path.join(ROOT_DIR, "public");
+const PUBLIC_DIR = NUXT_PUBLIC_DIR;
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const CACHE_DIR = path.join(DATA_DIR, "cache");
 const SAMPLE_FILE = path.join(DATA_DIR, "ssq-sample.json");
@@ -83,8 +85,10 @@ module.exports = {
   DB_SSL,
   DEFAULT_USER_ID,
   HOST,
+  LEGACY_PUBLIC_DIR,
   LEGACY_RECORDS_FILE,
   MIME_TYPES,
+  NUXT_PUBLIC_DIR,
   PORT,
   PUBLIC_DIR,
   REQUEST_HEADERS,

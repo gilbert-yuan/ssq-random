@@ -14,10 +14,16 @@ npm install
 $env:DATABASE_URL = "postgresql://postgres:password@127.0.0.1:5432/ssq_random"
 ```
 
-也可以在项目根目录创建 `.env` 文件：
+也可以复制示例配置生成项目根目录的 `.env` 文件：
+
+```bash
+cp .env.example .env
+```
+
+然后按本机 PostgreSQL 修改其中的 `DATABASE_URL`，例如：
 
 ```text
-DATABASE_URL=postgresql://postgres:password@127.0.0.1:5432/ssq_random
+DATABASE_URL=postgresql://postgres:change-me@127.0.0.1:5432/ssq_random
 ```
 
 PM2 启动时会读取 `.env`；如果当前终端里也设置了同名环境变量，终端里的值优先。
@@ -70,15 +76,41 @@ npm run stop
 http://127.0.0.1:5173
 ```
 
+Web 前端已迁移为 Nuxt/Vue3。开发前端时可运行：
+
+```bash
+npm run dev
+```
+
+生产启动前先生成 Nuxt 静态产物：
+
+```bash
+npm run generate
+```
+
 如需临时绕过 PM2 在前台直接启动，可执行 `npm run start:node`。
+
+也可以使用 Docker Compose 启动应用和 PostgreSQL，镜像构建时会自动生成 Nuxt 静态产物：
+
+```bash
+docker compose up -d --build
+```
+
+Docker 部署默认使用 `APP_PORT=5173`、`POSTGRES_DB=ssq_random`、`POSTGRES_USER=postgres`，可通过环境变量覆盖。
 
 运行自检：
 
 ```bash
-node scripts/smoke-test.js
+npm test
 ```
 
-说明：烟雾测试也依赖 `DATABASE_URL`，并会真实连接 PostgreSQL。
+也可以直接运行冒烟测试：
+
+```bash
+npm run test:smoke
+```
+
+说明：烟雾测试依赖 `DATABASE_URL`，并会真实连接 PostgreSQL。
 
 ## 功能
 
@@ -115,12 +147,14 @@ node scripts/smoke-test.js
 ## 项目结构
 
 ```text
-server.js                # 启动入口
+server.js                # Node 后端启动入口
 src/server/              # 后端路由、PostgreSQL、开奖源、指标、推荐补全
-public/app.js            # 前端入口
-public/js/domain/        # 前端分析和选号领域逻辑
-public/js/components/    # 可复用 UI 组件和图表
-public/js/pages/         # 页面编排
+pages/index.vue          # Nuxt/Vue3 Web 前端页面编排
+components/              # Vue 组件，按 common/dashboard 拆分
+composables/             # 前端 API、状态和交互逻辑
+utils/                   # 前端分析、选号、导出等纯函数
+assets/css/main.css      # Nuxt 全局样式
+.output/public/          # npm run generate 后的静态产物，由 Node 服务托管
 data/                    # 本地样例数据、缓存、旧版记录迁移源
 ```
 

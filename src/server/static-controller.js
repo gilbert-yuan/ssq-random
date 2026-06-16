@@ -1,46 +1,65 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { MIME_TYPES, PUBLIC_DIR } = require("./config");
+const { LEGACY_PUBLIC_DIR, MIME_TYPES, NUXT_PUBLIC_DIR } = require("./config");
 const { sendText } = require("./http");
 
-const ASSET_VERSION = Date.now().toString(36);
-
-function injectAssetVersion(html) {
-  const version = encodeURIComponent(ASSET_VERSION);
-  return html
-    .replace('href="/styles.css"', `href="/styles.css?v=${version}"`)
-    .replace(
-      '<script src="/app.js"></script>',
-      `<script>window.__assetVersion = ${JSON.stringify(ASSET_VERSION)};</script>\n    <script src="/app.js?v=${version}"></script>`
-    );
+async function directoryExists(dir) {
+  try {
+    const stat = await fs.stat(dir);
+    return stat.isDirectory();
+  } catch {
+    return false;
+  }
 }
 
-function cacheControlForExtension(ext) {
-  return ext === ".html" || ext === ".css" || ext === ".js" ? "no-store" : "public, max-age=3600";
+async function getStaticRoot() {
+  return (await directoryExists(NUXT_PUBLIC_DIR)) ? NUXT_PUBLIC_DIR : LEGACY_PUBLIC_DIR;
 }
 
-async function serveStatic(reqUrl, res) {
-  const requestedPath = decodeURIComponent(reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname);
-  const safePath = path.normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
-  const filePath = path.join(PUBLIC_DIR, safePath);
+function cacheControlForPath(reqPath, ext) {
+  if (reqPath.startsWith("/_nuxt/") || reqPath.startsWith("/assets/")) {
+    return "public, max-age=31536000, immutable";
+  }
+  return ext === ".html" ? "no-store" : "public, max-age=3600";
+}
 
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+function safeJoin(root, requestedPath) {
+  const safePath = path.normalize(requestedPath).replace(/^([/\\])+/g, "").replace(/^(\.\.[/\\])+/, "");
+  const filePath = path.join(root, safePath);
+  if (!filePath.startsWith(root)) return null;
+  return filePath;
+}
+
+async function sendFile(res, root, requestedPath, fallbackToIndex = false) {
+  const targetPath = fallbackToIndex ? "/index.html" : requestedPath;
+  const filePath = safeJoin(root, targetPath);
+  if (!filePath) {
     sendText(res, 403, "Forbidden");
-    return;
+    return true;
   }
 
   try {
     const ext = path.extname(filePath).toLowerCase();
-    const isHtml = ext === ".html";
-    const data = isHtml ? injectAssetVersion(await fs.readFile(filePath, "utf8")) : await fs.readFile(filePath);
+    const data = await fs.readFile(filePath);
     res.writeHead(200, {
       "Content-Type": MIME_TYPES[ext] || "application/octet-stream",
-      "Cache-Control": cacheControlForExtension(ext)
+      "Cache-Control": cacheControlForPath(targetPath, ext)
     });
     res.end(data);
+    return true;
   } catch {
-    sendText(res, 404, "Not found");
+    return false;
   }
+}
+
+async function serveStatic(reqUrl, res) {
+  const root = await getStaticRoot();
+  const requestedPath = decodeURIComponent(reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname);
+
+  if (await sendFile(res, root, requestedPath)) return;
+  const hasExtension = Boolean(path.extname(requestedPath));
+  if (!hasExtension && (await sendFile(res, root, requestedPath, true))) return;
+  sendText(res, 404, "Not found");
 }
 
 module.exports = {

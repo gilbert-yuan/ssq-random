@@ -1,9 +1,14 @@
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
+const path = require("node:path");
+const { loadDotEnv } = require("../src/server/env-file");
 
 const CHECK_FILES = [
+  "ecosystem.config.cjs",
   "server.js",
-  "public/app.js",
+  "nuxt.config.ts",
+  "app.vue",
+  "pages/index.vue",
   "package.json",
   "data/records.json",
   "data/community-sources.json",
@@ -32,11 +37,15 @@ function walkFiles(dir, filter) {
 
 function checkSyntax(file) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--check", file], { stdio: "pipe" });
+    const source = fs.readFileSync(file, "utf8");
+    const isModule = /(^|\n)\s*(import\s|export\s)/.test(source);
+    const args = isModule ? ["--check", "--input-type=module"] : ["--check", file];
+    const child = spawn(process.execPath, args, { stdio: "pipe" });
     let output = "";
     child.stderr.on("data", (chunk) => {
       output += chunk;
     });
+    if (isModule) child.stdin.end(source);
     child.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error(`${file} syntax check failed\n${output}`));
@@ -56,17 +65,23 @@ async function checkLauncherScripts() {
   if (shellScript.includes("\r\n")) {
     throw new Error("start.sh must use LF line endings for Ubuntu compatibility");
   }
-  if (!shellScript.includes("node server.js")) {
-    throw new Error("start.sh must run node server.js");
+  if (!shellScript.includes("command -v pm2")) {
+    throw new Error("start.sh must check that pm2 is installed");
+  }
+  if (!shellScript.includes("pm2 startOrRestart ecosystem.config.cjs --update-env")) {
+    throw new Error("start.sh must start the app with pm2");
   }
 
   const batchScript = await fs.promises.readFile("start.bat", "utf8");
-  if (!/node\s+server\.js/i.test(batchScript)) {
-    throw new Error("start.bat must run node server.js");
+  if (!/where\s+pm2/i.test(batchScript)) {
+    throw new Error("start.bat must check that pm2 is installed");
+  }
+  if (!/pm2\s+startOrRestart\s+ecosystem\.config\.cjs\s+--update-env/i.test(batchScript)) {
+    throw new Error("start.bat must start the app with pm2");
   }
 }
 
-async function waitForServer(port, timeoutMs = 5000) {
+async function waitForServer(port, timeoutMs = 15000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     try {
@@ -85,9 +100,14 @@ function requireEnv(name) {
   }
 }
 
-async function checkEndpoint(port, path, validate) {
-  const response = await fetch(`http://127.0.0.1:${port}${path}`);
+async function fetchEndpoint(port, path, options = {}) {
+  const response = await fetch(`http://127.0.0.1:${port}${path}`, options);
   if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
+  return response;
+}
+
+async function checkEndpoint(port, path, validate) {
+  const response = await fetchEndpoint(port, path);
   const text = await response.text();
   validate(text);
 }
@@ -110,6 +130,12 @@ async function withServer(run) {
   try {
     await waitForServer(port);
     await run(port);
+  } catch (error) {
+    const serverOutput = output.trim();
+    if (serverOutput) {
+      error.message = `${error.message}\nserver output:\n${serverOutput}`;
+    }
+    throw error;
   } finally {
     child.kill();
   }
@@ -120,12 +146,14 @@ async function withServer(run) {
 }
 
 async function main() {
+  loadDotEnv(path.join(__dirname, "..", ".env"));
   requireEnv("DATABASE_URL");
   const jsFiles = Array.from(
     new Set([
-      ...CHECK_FILES.filter((file) => file.endsWith(".js")),
+      ...CHECK_FILES.filter((file) => file.endsWith(".js") || file.endsWith(".cjs")),
       ...walkFiles("src/server", (file) => file.endsWith(".js")),
-      ...walkFiles("public/js", (file) => file.endsWith(".js")),
+      ...walkFiles("utils", (file) => file.endsWith(".js")),
+      ...walkFiles("composables", (file) => file.endsWith(".js")),
       ...walkFiles("miniprogram", (file) => file.endsWith(".js"))
     ])
   );
@@ -156,7 +184,24 @@ async function main() {
 
     await checkEndpoint(port, "/", (text) => {
       if (!text.includes("<title>双色球分析台</title>")) throw new Error("home page title missing");
+      if (!text.includes("/_nuxt/")) throw new Error("home page must reference Nuxt assets");
     });
+    const nuxtFiles = Array.from((await fs.promises.readdir(path.join(__dirname, "..", ".output", "public", "_nuxt"))).values());
+    const nuxtAsset = nuxtFiles.find((file) => file.endsWith(".js"));
+    if (!nuxtAsset) throw new Error("Nuxt JavaScript asset missing; run npm run generate first");
+    const assetResponse = await fetchEndpoint(port, `/_nuxt/${nuxtAsset}`);
+    if (!String(assetResponse.headers.get("cache-control") || "").includes("immutable")) {
+      throw new Error("Nuxt hashed assets must use immutable cache headers");
+    }
+    const nuxtBundleText = (
+      await Promise.all(
+        nuxtFiles
+          .filter((file) => file.endsWith(".js"))
+          .map((file) => fs.promises.readFile(path.join(__dirname, "..", ".output", "public", "_nuxt", file), "utf8"))
+      )
+    ).join("\n");
+    if (!nuxtBundleText.includes("冷号补位")) throw new Error("Nuxt bundle must expose the default cold-fill prediction mode");
+    if (!nuxtBundleText.includes("彩票开奖结果具有强随机性")) throw new Error("Nuxt bundle must show a randomness risk note");
     await checkEndpoint(port, "/api/draws?limit=30", (text) => {
       const payload = JSON.parse(text);
       if (!Array.isArray(payload.draws) || payload.draws.length === 0) {

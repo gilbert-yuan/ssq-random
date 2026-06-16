@@ -4,13 +4,19 @@
   "private": true,
   "description": "双色球一键选号、历史分布分析、趋势建议和社区推荐号抓取工具",
   "scripts": {
+    "dev": "nuxt dev --host 127.0.0.1",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
     "start": "pm2 startOrRestart ecosystem.config.cjs --update-env",
     "start:node": "node server.js",
     "restart": "pm2 restart ssq-random --update-env",
     "stop": "pm2 stop ssq-random",
     "logs": "pm2 logs ssq-random",
     "status": "pm2 status ssq-random",
-    "test": "node scripts/smoke-test.js"
+    "test": "npm run test:smoke",
+    "test:smoke": "node scripts/smoke-test.js",
+    "test:all": "npm run generate && npm run test:smoke"
   },
   "dependencies": {
     "pg": "^8.13.1",
@@ -18,5 +24,8 @@
   },
   "engines": {
     "node": ">=24"
+  },
+  "devDependencies": {
+    "nuxt": "^3.21.8"
   }
 }

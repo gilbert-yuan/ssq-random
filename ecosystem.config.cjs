@@ -19,6 +19,7 @@ module.exports = {
       max_memory_restart: "300M",
       env: {
         ...fileEnv,
+        ...process.env,
         NODE_ENV: process.env.NODE_ENV || fileEnv.NODE_ENV || "production"
       }
     }

@@ -93,7 +93,15 @@ export function getDrawShape(draw, previousDraw = null) {
   };
 }
 
-export function makeNumberStats(size, draws, picker, recentSize = 30) {
+function normalizeScore(value, max) {
+  return max ? Number((value / max).toFixed(4)) : 0;
+}
+
+function windowKey(size) {
+  return `w${size}`;
+}
+
+export function makeNumberStats(size, draws, picker, recentSize = 30, windows = [10, 30, 60]) {
   const stats = Array.from({ length: size }, (_, index) => ({
     number: pad(index + 1),
     value: index + 1,
@@ -101,7 +109,11 @@ export function makeNumberStats(size, draws, picker, recentSize = 30) {
     recent: 0,
     miss: draws.length,
     lastIndex: -1,
-    score: 0
+    score: 0,
+    windowHits: Object.fromEntries(windows.map((window) => [windowKey(window), 0])),
+    decay: 0,
+    decayScore: 0,
+    trend: 0
   }));
 
   draws.forEach((draw, index) => {
@@ -111,6 +123,10 @@ export function makeNumberStats(size, draws, picker, recentSize = 30) {
       if (!item) return;
       item.freq += 1;
       if (index < recentSize) item.recent += 1;
+      windows.forEach((window) => {
+        if (index < window) item.windowHits[windowKey(window)] += 1;
+      });
+      item.decay += Math.exp(-index / 24);
       if (item.lastIndex === -1) {
         item.lastIndex = index;
         item.miss = index;
@@ -121,11 +137,17 @@ export function makeNumberStats(size, draws, picker, recentSize = 30) {
   const maxFreq = Math.max(1, ...stats.map((item) => item.freq));
   const maxRecent = Math.max(1, ...stats.map((item) => item.recent));
   const maxMiss = Math.max(1, ...stats.map((item) => item.miss));
+  const maxDecay = Math.max(1, ...stats.map((item) => item.decay));
   stats.forEach((item) => {
     const hot = item.freq / maxFreq;
     const recent = item.recent / maxRecent;
     const omission = Math.min(item.miss / maxMiss, 1);
-    item.score = hot * 0.42 + recent * 0.4 + omission * 0.18;
+    const decay = item.decay / maxDecay;
+    const shortHot = normalizeScore(item.windowHits.w10 || 0, Math.min(10, draws.length));
+    const longHot = normalizeScore(item.windowHits.w60 || 0, Math.min(60, draws.length));
+    item.decayScore = Number(decay.toFixed(4));
+    item.trend = Number((shortHot - longHot).toFixed(4));
+    item.score = hot * 0.34 + recent * 0.28 + decay * 0.22 + omission * 0.16;
   });
 
   return stats;
@@ -141,6 +163,30 @@ export function quantile(values, q) {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
+export function percentileRank(values, value) {
+  const numeric = values.map(Number).filter(Number.isFinite);
+  if (!numeric.length || !Number.isFinite(Number(value))) return 0;
+  const lowerOrEqual = numeric.filter((item) => item <= Number(value)).length;
+  return Math.round((lowerOrEqual / numeric.length) * 100);
+}
+
+function distributionSummary(values) {
+  const numeric = values.map(Number).filter(Number.isFinite);
+  if (!numeric.length) {
+    return { min: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0, max: 0, average: 0 };
+  }
+  return {
+    min: Math.min(...numeric),
+    p10: Number(quantile(numeric, 0.1).toFixed(2)),
+    p25: Number(quantile(numeric, 0.25).toFixed(2)),
+    p50: Number(quantile(numeric, 0.5).toFixed(2)),
+    p75: Number(quantile(numeric, 0.75).toFixed(2)),
+    p90: Number(quantile(numeric, 0.9).toFixed(2)),
+    max: Math.max(...numeric),
+    average: Number(mean(numeric).toFixed(2))
+  };
+}
+
 export function shannonEntropy(counts) {
   const total = counts.reduce((sum, value) => sum + value, 0);
   if (!total) return 0;
@@ -149,6 +195,64 @@ export function shannonEntropy(counts) {
     const p = count / total;
     return acc + p * Math.log2(p);
   }, 0);
+}
+
+function missTier(miss, quantiles) {
+  if (miss >= quantiles.p90) return "p90";
+  if (miss >= quantiles.p75) return "p75";
+  return "normal";
+}
+
+function makeCooccurrence(draws, window = 80) {
+  const pairMap = {};
+  const partnerMap = new Map();
+  draws.slice(0, window).forEach((draw, index) => {
+    const reds = [...draw.red].sort((a, b) => Number(a) - Number(b));
+    const recentWeight = index < 30 ? 2 : 1;
+    for (let i = 0; i < reds.length; i += 1) {
+      for (let j = i + 1; j < reds.length; j += 1) {
+        const a = reds[i];
+        const b = reds[j];
+        const key = `${a}-${b}`;
+        const current = pairMap[key] || { pair: [a, b], count: 0, recent: 0, score: 0 };
+        current.count += 1;
+        current.recent += index < 30 ? 1 : 0;
+        current.score += recentWeight;
+        pairMap[key] = current;
+        [
+          [a, b],
+          [b, a]
+        ].forEach(([number, partner]) => {
+          if (!partnerMap.has(number)) partnerMap.set(number, new Map());
+          const partners = partnerMap.get(number);
+          const item = partners.get(partner) || { number: partner, count: 0, recent: 0, score: 0 };
+          item.count += 1;
+          item.recent += index < 30 ? 1 : 0;
+          item.score += recentWeight;
+          partners.set(partner, item);
+        });
+      }
+    }
+  });
+
+  const topPairs = Object.values(pairMap).sort((a, b) => b.score - a.score || b.count - a.count).slice(0, 20);
+  const partners = {};
+  partnerMap.forEach((value, key) => {
+    partners[key] = Array.from(value.values()).sort((a, b) => b.score - a.score || b.count - a.count).slice(0, 5);
+  });
+  return { window, topPairs, pairMap, partners };
+}
+
+function makeShapeRanges(shapes) {
+  return {
+    sum: distributionSummary(shapes.map((shape) => shape.sum)),
+    span: distributionSummary(shapes.map((shape) => shape.span)),
+    ac: distributionSummary(shapes.map((shape) => shape.ac)),
+    odd: distributionSummary(shapes.map((shape) => shape.odd)),
+    big: distributionSummary(shapes.map((shape) => shape.big)),
+    consecutive: distributionSummary(shapes.map((shape) => shape.consecutive)),
+    repeat: distributionSummary(shapes.map((shape) => shape.repeat))
+  };
 }
 
 export function analyze(draws) {
@@ -185,8 +289,8 @@ export function analyze(draws) {
   const missP50 = Math.round(quantile(missValues, 0.5));
   const missP75 = Math.round(quantile(missValues, 0.75));
   const missP90 = Math.round(quantile(missValues, 0.9));
-  const levelFor = (miss) => (miss >= missP90 ? "p90" : miss >= missP75 ? "p75" : "normal");
-  const annotateMiss = (item) => ({ ...item, missLevel: levelFor(item.miss) });
+  const missQuantiles = { p50: missP50, p75: missP75, p90: missP90 };
+  const annotateMiss = (item) => ({ ...item, missLevel: missTier(item.miss, missQuantiles) });
   const hotReds = [...redStats].sort((a, b) => b.freq - a.freq).slice(0, 8).map(annotateMiss);
   const trendReds = [...redStats].sort((a, b) => b.score - a.score).slice(0, 10).map(annotateMiss);
   const coldReds = [...redStats].sort((a, b) => b.miss - a.miss).slice(0, 8).map(annotateMiss);
@@ -200,12 +304,14 @@ export function analyze(draws) {
   const blueEntropy = shannonEntropy(blueStats.map((item) => item.recent));
   const redEntropyMax = Math.log2(33);
   const blueEntropyMax = Math.log2(16);
+  const shapeRanges = makeShapeRanges(recentShapes.length ? recentShapes : shapes);
+  const cooccurrence = makeCooccurrence(draws, 80);
 
   return {
     count: draws.length,
     recentWindow,
     recentDraws,
-    redStats,
+    redStats: redStats.map(annotateMiss),
     blueStats,
     shapes,
     hotReds,
@@ -213,7 +319,7 @@ export function analyze(draws) {
     coldReds,
     hotBlues,
     missAlerts,
-    missQuantiles: { p50: missP50, p75: missP75, p90: missP90 },
+    missQuantiles,
     entropy: {
       red: Number(redEntropy.toFixed(3)),
       redMax: Number(redEntropyMax.toFixed(3)),
@@ -226,8 +332,8 @@ export function analyze(draws) {
       average: Math.round(mean(sums)),
       median: Math.round(median(sums)),
       recentAverage: Math.round(mean(recentShapes.map((shape) => shape.sum))),
-      min: Math.min(...sums),
-      max: Math.max(...sums)
+      min: sums.length ? Math.min(...sums) : 0,
+      max: sums.length ? Math.max(...sums) : 0
     },
     shape: {
       zones,
@@ -243,6 +349,14 @@ export function analyze(draws) {
       spanAverage: Math.round(mean(spans)),
       acAverage: Number(mean(acValues).toFixed(1)),
       common012: mode(recentShapes.map((shape) => shape.mod012.join(":")))
+    },
+    features: {
+      windows: [10, 30, 60],
+      missQuantiles,
+      cooccurrence,
+      shapeRanges,
+      predictionBias: "cold",
+      riskNote: "彩票开奖结果具有强随机性，以下分析只反映历史样本结构，不代表未来必然命中。"
     }
   };
 }
