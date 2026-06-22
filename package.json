@@ -4,10 +4,9 @@
   "private": true,
   "description": "双色球一键选号、历史分布分析、趋势建议和社区推荐号抓取工具",
   "scripts": {
-    "dev": "nuxt dev --host 127.0.0.1",
-    "build": "nuxt build",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "start": "pm2 startOrRestart ecosystem.config.cjs --update-env",
     "start:node": "node server.js",
     "restart": "pm2 restart ssq-random --update-env",
@@ -16,16 +15,19 @@
     "status": "pm2 status ssq-random",
     "test": "npm run test:smoke",
     "test:smoke": "node scripts/smoke-test.js",
-    "test:all": "npm run generate && npm run test:smoke"
+    "test:all": "npm run build && npm run test:smoke"
   },
   "dependencies": {
     "pg": "^8.13.1",
-    "pm2": "^7.0.1"
+    "pm2": "^7.0.1",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
   },
   "engines": {
     "node": ">=24"
   },
   "devDependencies": {
-    "nuxt": "^3.21.8"
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.2.8"
   }
 }
