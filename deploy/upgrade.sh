@@ -76,7 +76,7 @@ ensure_env() {
 POSTGRES_PASSWORD=$password
 APP_PORT=$APP_PORT
 # Uncomment to use China mirror for Docker images:
-# NODE_IMAGE=docker.1ms.run/node:24-bookworm-slim
+# NODE_IMAGE=docker.1ms.run/node:22-bookworm-slim
 # POSTGRES_IMAGE=docker.1ms.run/postgres:16-alpine
 EOF
 
