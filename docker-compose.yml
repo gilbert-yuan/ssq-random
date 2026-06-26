@@ -19,7 +19,7 @@ services:
       - postgres
 
   postgres:
-    image: postgres:13-alpine
+    image:  docker.1ms.run/postgres:latest
     container_name: ssq-random-postgres
     restart: always
     environment:
