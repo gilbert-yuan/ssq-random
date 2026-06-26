@@ -72,7 +72,8 @@ async function serveStatic(reqUrl, res) {
       "ETag": entry.etag
     });
     res.end(entry.buffer);
-  } catch {
+  } catch (error) {
+    console.error(`[static] 读取失败: ${filePath}`, error.code || error.message);
     sendText(res, 404, "Not found");
   }
 }
