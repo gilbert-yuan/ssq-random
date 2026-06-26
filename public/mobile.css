@@ -6,10 +6,10 @@ body.mobile-page {
 }
 
 .mobile-shell {
-  width: min(100% - 16px, 720px);
+  width: min(100% - 10px, 720px);
   min-height: 100vh;
   margin: 0 auto;
-  padding: max(10px, env(safe-area-inset-top)) 0 calc(92px + env(safe-area-inset-bottom));
+  padding: max(6px, env(safe-area-inset-top)) 0 calc(76px + env(safe-area-inset-bottom));
 }
 
 .mobile-header {
@@ -17,25 +17,25 @@ body.mobile-page {
   top: 0;
   z-index: 12;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 2px 8px;
+  padding: 7px 2px 6px;
   background: linear-gradient(180deg, rgba(255, 248, 220, 0.98), rgba(255, 248, 220, 0.78));
   backdrop-filter: blur(12px);
 }
 
 .mobile-kicker {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: var(--ink-soft);
   font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .mobile-header h1 {
-  font-size: 1.55rem;
+  font-size: 1.25rem;
   letter-spacing: 0;
 }
 
@@ -43,13 +43,13 @@ body.mobile-page {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  min-height: 38px;
+  min-height: 32px;
   border: 2px solid var(--border);
   border-radius: 999px;
-  padding: 0 12px;
+  padding: 0 10px;
   background: var(--blue-soft);
   color: var(--ink);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   text-decoration: none;
   box-shadow: var(--shadow);
@@ -57,12 +57,12 @@ body.mobile-page {
 
 .mobile-status {
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  margin: 4px 0 10px;
+  gap: 8px;
+  align-items: center;
+  margin: 2px 0 7px;
   border: 2px solid var(--border);
-  border-radius: 16px;
-  padding: 10px 12px;
+  border-radius: 12px;
+  padding: 7px 9px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow);
 }
@@ -85,18 +85,18 @@ body.mobile-page {
 
 .mobile-status span:last-child {
   color: var(--ink-soft);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .mobile-main {
   display: grid;
-  gap: 10px;
+  gap: 7px;
 }
 
 .mobile-view {
   display: none;
-  gap: 10px;
+  gap: 7px;
 }
 
 .mobile-view.active {
@@ -106,11 +106,11 @@ body.mobile-page {
 .mobile-card {
   position: relative;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   overflow: visible;
   border: 2px solid var(--border);
-  border-radius: 16px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 9px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: var(--shadow);
 }
@@ -119,16 +119,16 @@ body.mobile-page {
   content: "";
   position: absolute;
   top: 0;
-  right: 18px;
-  width: 62px;
-  height: 8px;
+  right: 14px;
+  width: 44px;
+  height: 6px;
   border-radius: 0 0 8px 8px;
   background: rgba(255, 214, 231, 0.9);
 }
 
 .mobile-card-head {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-start;
   justify-content: space-between;
 }
@@ -138,27 +138,27 @@ body.mobile-page {
 }
 
 .mobile-card-head h2 {
-  font-size: 1rem;
+  font-size: 0.92rem;
   letter-spacing: 0;
 }
 
 .mobile-card-head p {
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--ink-soft);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .mobile-card-head span {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 24px;
   border: 2px solid rgba(35, 48, 61, 0.16);
   border-radius: 999px;
-  padding: 0 10px;
+  padding: 0 8px;
   background: rgba(255, 255, 255, 0.82);
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -169,30 +169,34 @@ body.mobile-page {
 }
 
 .mobile-card textarea {
-  min-height: 120px;
+  min-height: 92px;
   max-height: none;
 }
 
 .mobile-action-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 7px;
 }
 
 .mobile-action-row button {
   width: 100%;
   min-width: 0;
-  padding: 0 10px;
+  min-height: 36px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .mobile-combo-button {
   width: 100%;
+  min-height: 36px;
   background: var(--green-soft);
+  font-size: 12px;
 }
 
 .mobile-number-block {
   display: grid;
-  gap: 10px;
+  gap: 7px;
 }
 
 .mobile-page .summary-grid,
@@ -216,6 +220,40 @@ body.mobile-page {
   box-shadow: 2px 2px 0 var(--border);
 }
 
+.mobile-page .metric {
+  min-height: 62px;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.mobile-page .metric span,
+.mobile-page .metric em {
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.mobile-page .metric strong {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.mobile-page .ticket {
+  padding: 9px;
+  border-radius: 12px;
+}
+
+.mobile-page .ticket-head {
+  margin-bottom: 7px;
+  font-size: 11px;
+}
+
+.mobile-page .ticket p {
+  margin-top: 7px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .mobile-page .ticket-inline-row,
 .mobile-page .record-row,
 .mobile-page .score-row {
@@ -233,11 +271,24 @@ body.mobile-page {
 }
 
 .mobile-page .ball-row {
+  gap: 5px;
   overflow: visible;
 }
 
+.mobile-page .ball {
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+}
+
+.mobile-page .ball.small {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
 .mobile-page .number-grid.red {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
 .mobile-page .number-grid.blue {
@@ -245,7 +296,8 @@ body.mobile-page {
 }
 
 .mobile-page .number-pick {
-  max-width: 44px;
+  max-width: 36px;
+  font-size: 10px;
 }
 
 .mobile-page .bar-chart {
@@ -253,15 +305,15 @@ body.mobile-page {
 }
 
 .mobile-page .bar-track {
-  height: 66px;
+  height: 52px;
 }
 
 .mobile-page .line-chart-card {
-  padding: 8px;
+  padding: 7px;
 }
 
 .mobile-page .line-chart-svg {
-  min-height: 180px;
+  min-height: 150px;
 }
 
 .mobile-page .chart-axis,
@@ -270,7 +322,26 @@ body.mobile-page {
 }
 
 .mobile-page .account-stats {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mobile-page .account-stat {
+  min-width: 0;
+  padding: 7px 5px;
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 var(--border);
+}
+
+.mobile-page .account-stat span {
+  font-size: 9px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.mobile-page .account-stat strong {
+  margin-top: 4px;
+  font-size: 1.05rem;
 }
 
 .mobile-page .auth-card {
@@ -285,24 +356,24 @@ body.mobile-page {
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 5px;
+  gap: 4px;
   width: min(calc(100% - 16px), 720px);
   margin: 0 auto;
   border: 2px solid var(--border);
-  border-radius: 18px;
-  padding: 7px;
+  border-radius: 14px;
+  padding: 5px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(14px);
 }
 
 .mobile-bottom-nav button {
-  min-height: 42px;
+  min-height: 34px;
   min-width: 0;
-  border-radius: 12px;
-  padding: 0 4px;
+  border-radius: 9px;
+  padding: 0 2px;
   box-shadow: none;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .mobile-bottom-nav button.active {
@@ -313,11 +384,11 @@ body.mobile-page {
 
 @media (max-width: 380px) {
   .mobile-shell {
-    width: min(100% - 10px, 720px);
+    width: min(100% - 8px, 720px);
   }
 
   .mobile-card {
-    padding: 10px;
+    padding: 8px;
   }
 
   .mobile-action-row {
@@ -325,7 +396,20 @@ body.mobile-page {
   }
 
   .mobile-page .account-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .mobile-page .account-stat {
+    padding: 6px 3px;
+  }
+
+  .mobile-page .account-stat span {
+    font-size: 8px;
+  }
+
+  .mobile-page .account-stat strong {
+    font-size: 0.9rem;
   }
 
   .mobile-bottom-nav {
