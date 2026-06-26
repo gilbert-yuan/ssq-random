@@ -12,7 +12,9 @@ export const state = {
   favorites: [],
   filters: {
     favoriteIssue: "",
-    manualIssue: ""
+    favoriteIssueTouched: false,
+    manualIssue: "",
+    manualIssueTouched: false
   },
   records: null,
   manual: {

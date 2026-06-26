@@ -893,13 +893,26 @@ function renderTicketCollection(panel, emptyText, tickets) {
     .join("");
 }
 
-function uniqueIssueOptions(records) {
-  return Array.from(new Set(records.map((item) => item.baseIssue).filter(Boolean))).sort((a, b) => Number(b) - Number(a));
+function uniqueIssueOptions(records, extraIssue = "") {
+  return Array.from(new Set(records.map((item) => item.baseIssue).concat(extraIssue).filter(Boolean))).sort((a, b) => Number(b) - Number(a));
+}
+
+function currentIssueFilterValue() {
+  return state.draws[0]?.issue || "";
+}
+
+function ensureIssueFilterDefault(filterKey) {
+  const touchedKey = `${filterKey}Touched`;
+  const currentIssue = currentIssueFilterValue();
+  if (!state.filters[touchedKey] && currentIssue) {
+    state.filters[filterKey] = currentIssue;
+  }
+  return state.filters[filterKey] || "";
 }
 
 function syncIssueFilterOptions(select, records, selectedValue) {
   if (!select) return;
-  const issues = uniqueIssueOptions(records);
+  const issues = uniqueIssueOptions(records, currentIssueFilterValue());
   const options = [`<option value="">全部期数</option>`]
     .concat(issues.map((issue) => `<option value="${escapeHtml(issue)}">第 ${escapeHtml(issue)} 期</option>`))
     .join("");
@@ -909,7 +922,8 @@ function syncIssueFilterOptions(select, records, selectedValue) {
 
 function renderFavorites() {
   const favoriteSourceRecords = (state.records?.records || []).filter((item) => item.type === "favorite");
-  syncIssueFilterOptions(els.favoriteIssueFilter, favoriteSourceRecords, state.filters.favoriteIssue);
+  const selectedIssue = ensureIssueFilterDefault("favoriteIssue");
+  syncIssueFilterOptions(els.favoriteIssueFilter, favoriteSourceRecords, selectedIssue);
   const filteredFavoriteRecords = favoriteSourceRecords
     .filter((item) => !state.filters.favoriteIssue || item.baseIssue === state.filters.favoriteIssue)
     .slice(0, 12);
@@ -922,7 +936,8 @@ function renderFavorites() {
 
 function renderSavedManualRecords() {
   const manualSourceRecords = (state.records?.records || []).filter((item) => item.type === "manual");
-  syncIssueFilterOptions(els.manualIssueFilter, manualSourceRecords, state.filters.manualIssue);
+  const selectedIssue = ensureIssueFilterDefault("manualIssue");
+  syncIssueFilterOptions(els.manualIssueFilter, manualSourceRecords, selectedIssue);
   const manualRecords = manualSourceRecords
     .filter((item) => !state.filters.manualIssue || item.baseIssue === state.filters.manualIssue)
     .slice(0, 12);
@@ -1405,10 +1420,12 @@ function wireEvents() {
   els.completePickBtn.addEventListener("click", completeManualTicket);
   els.clearPickBtn.addEventListener("click", clearManualSelection);
   els.favoriteIssueFilter?.addEventListener("change", (event) => {
+    state.filters.favoriteIssueTouched = true;
     state.filters.favoriteIssue = event.currentTarget?.value || "";
     renderFavorites();
   });
   els.manualIssueFilter?.addEventListener("change", (event) => {
+    state.filters.manualIssueTouched = true;
     state.filters.manualIssue = event.currentTarget?.value || "";
     renderSavedManualRecords();
   });

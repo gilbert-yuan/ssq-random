@@ -27,7 +27,9 @@ const state = {
   },
   filters: {
     favoriteIssue: "",
-    manualIssue: ""
+    favoriteIssueTouched: false,
+    manualIssue: "",
+    manualIssueTouched: false
   }
 };
 
@@ -586,7 +588,9 @@ function clearManualSelection() {
 }
 
 function issueOptions(records, selected) {
-  const issues = Array.from(new Set(records.map((item) => item.baseIssue).filter(Boolean)));
+  const issues = Array.from(new Set(records.map((item) => item.baseIssue).concat(currentIssueFilterValue()).filter(Boolean))).sort(
+    (a, b) => Number(b) - Number(a)
+  );
   return `<option value="">全部期数</option>${issues
     .map((issue) => `<option value="${escapeHtml(issue)}" ${issue === selected ? "selected" : ""}>${escapeHtml(issue)}</option>`)
     .join("")}`;
@@ -594,6 +598,19 @@ function issueOptions(records, selected) {
 
 function recordTypeLabel(type) {
   return type === "community" ? "社区" : type === "favorite" ? "收藏" : type === "manual" ? "自选" : "建议";
+}
+
+function currentIssueFilterValue() {
+  return state.draws[0]?.issue || "";
+}
+
+function ensureIssueFilterDefault(filterKey) {
+  const touchedKey = `${filterKey}Touched`;
+  const currentIssue = currentIssueFilterValue();
+  if (!state.filters[touchedKey] && currentIssue) {
+    state.filters[filterKey] = currentIssue;
+  }
+  return state.filters[filterKey] || "";
 }
 
 function renderRecordList() {
@@ -660,20 +677,24 @@ function renderRecords() {
   const records = state.records?.records || [];
   const favorites = records.filter((item) => item.type === "favorite");
   const manuals = records.filter((item) => item.type === "manual");
-  els.favoriteCount.textContent = `${favorites.length} 注`;
-  els.manualRecordCount.textContent = `${manuals.length} 注`;
-  els.favoriteIssueFilter.innerHTML = issueOptions(favorites, state.filters.favoriteIssue);
-  els.manualIssueFilter.innerHTML = issueOptions(manuals, state.filters.manualIssue);
+  const selectedFavoriteIssue = ensureIssueFilterDefault("favoriteIssue");
+  const selectedManualIssue = ensureIssueFilterDefault("manualIssue");
+  const filteredFavorites = favorites.filter((item) => !state.filters.favoriteIssue || item.baseIssue === state.filters.favoriteIssue);
+  const filteredManuals = manuals.filter((item) => !state.filters.manualIssue || item.baseIssue === state.filters.manualIssue);
+  els.favoriteCount.textContent = `${filteredFavorites.length} 注`;
+  els.manualRecordCount.textContent = `${filteredManuals.length} 注`;
+  els.favoriteIssueFilter.innerHTML = issueOptions(favorites, selectedFavoriteIssue);
+  els.manualIssueFilter.innerHTML = issueOptions(manuals, selectedManualIssue);
   renderRecordCollection(
     els.favoritesPanel,
     "暂无收藏",
-    favorites.filter((item) => !state.filters.favoriteIssue || item.baseIssue === state.filters.favoriteIssue),
+    filteredFavorites,
     "data-delete-favorite"
   );
   renderRecordCollection(
     els.manualRecordList,
     "暂无自选号记录",
-    manuals.filter((item) => !state.filters.manualIssue || item.baseIssue === state.filters.manualIssue),
+    filteredManuals,
     "data-delete-manual"
   );
   renderAuth();
@@ -945,10 +966,12 @@ function wireEvents() {
   els.loginBtn.addEventListener("click", loginUser);
   els.logoutBtn.addEventListener("click", logoutUser);
   els.favoriteIssueFilter.addEventListener("change", (event) => {
+    state.filters.favoriteIssueTouched = true;
     state.filters.favoriteIssue = event.currentTarget.value || "";
     renderRecords();
   });
   els.manualIssueFilter.addEventListener("change", (event) => {
+    state.filters.manualIssueTouched = true;
     state.filters.manualIssue = event.currentTarget.value || "";
     renderRecords();
   });
