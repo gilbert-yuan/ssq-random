@@ -201,13 +201,22 @@ body.mobile-page {
 
 .mobile-page .summary-grid,
 .mobile-page .backtest-grid,
-.mobile-page .tickets,
 .mobile-page .shape-grid,
-.mobile-page .classification-list,
+.mobile-page .classification-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  overflow: visible;
+}
+
+.mobile-page .tickets,
 .mobile-page .line-chart-grid,
 .mobile-page .manual-result-grid {
   grid-template-columns: 1fr;
   overflow: visible;
+}
+
+.mobile-page #mobileSummaryGrid {
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
 }
 
 .mobile-page .ticket,
@@ -221,21 +230,35 @@ body.mobile-page {
 }
 
 .mobile-page .metric {
-  min-height: 62px;
-  padding: 8px;
-  border-radius: 12px;
+  min-height: 54px;
+  padding: 6px 4px;
+  border-radius: 10px;
 }
 
 .mobile-page .metric span,
 .mobile-page .metric em {
-  font-size: 10px;
-  line-height: 1.25;
+  font-size: 9px;
+  line-height: 1.18;
 }
 
 .mobile-page .metric strong {
-  margin-top: 4px;
-  font-size: 15px;
+  margin-top: 3px;
+  font-size: 13px;
   line-height: 1;
+}
+
+.mobile-page .metric em {
+  margin-top: 4px;
+}
+
+.mobile-page #mobileRecordSummary .metric,
+.mobile-page #mobileIndicatorBacktest .metric {
+  min-height: 48px;
+}
+
+.mobile-page #mobileRecordSummary .metric strong,
+.mobile-page #mobileIndicatorBacktest .metric strong {
+  font-size: 12px;
 }
 
 .mobile-page .ticket {
@@ -398,6 +421,30 @@ body.mobile-page {
   .mobile-page .account-stats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
+  }
+
+  .mobile-page .summary-grid,
+  .mobile-page .backtest-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .mobile-page #mobileSummaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mobile-page .metric {
+    min-height: 46px;
+    padding: 5px 3px;
+  }
+
+  .mobile-page .metric span,
+  .mobile-page .metric em {
+    font-size: 8px;
+  }
+
+  .mobile-page .metric strong {
+    font-size: 11px;
   }
 
   .mobile-page .account-stat {
