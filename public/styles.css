@@ -308,6 +308,10 @@ h2 {
   background: var(--orange-soft);
 }
 
+.combo-recommend-button {
+  background: var(--green-soft);
+}
+
 .field {
   display: grid;
   gap: 8px;

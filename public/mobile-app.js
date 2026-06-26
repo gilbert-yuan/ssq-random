@@ -9,6 +9,7 @@ import { renderNumberGrid } from "./js/components/number-picker.js";
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const TICKET_BATCH_SIZE = 6;
+const COMBO_RECOMMEND_MODES = ["hot", "blue", "blue", "cold", "community"];
 
 const state = {
   auth: { authenticated: null, user: null, busy: false },
@@ -46,6 +47,7 @@ const els = {
   confidenceText: $("#mobileConfidenceText"),
   strategySelect: $("#mobileStrategySelect"),
   generateBtn: $("#mobileGenerateBtn"),
+  comboRecommendBtn: $("#mobileComboRecommendBtn"),
   replaceBtn: $("#mobileReplaceBtn"),
   tickets: $("#mobileTickets"),
   manualStrategySelect: $("#mobileManualStrategySelect"),
@@ -110,6 +112,7 @@ function setBusy(isBusy) {
   [
     els.refreshDrawsBtn,
     els.generateBtn,
+    els.comboRecommendBtn,
     els.replaceBtn,
     els.completePickBtn,
     els.communityBtn,
@@ -393,11 +396,15 @@ function buildTicketModes(selected, size = TICKET_BATCH_SIZE) {
 
 function generateTicketBatch(selected, size = TICKET_BATCH_SIZE) {
   const modes = buildTicketModes(selected, size);
+  return generateTicketsByModes(modes, selected, size);
+}
+
+function generateTicketsByModes(modes, fallbackMode = "balanced", size = modes.length) {
   const tickets = [];
   const seen = new Set();
   let guard = 0;
   while (tickets.length < size && guard < size * 16) {
-    const mode = modes[tickets.length % modes.length] || selected;
+    const mode = modes[tickets.length % modes.length] || fallbackMode;
     const ticket = generateTicket(state.analysis, mode, state.community);
     const key = drawKey(ticket);
     if (!seen.has(key)) {
@@ -407,6 +414,10 @@ function generateTicketBatch(selected, size = TICKET_BATCH_SIZE) {
     guard += 1;
   }
   return tickets;
+}
+
+function generateComboRecommendBatch() {
+  return generateTicketsByModes(COMBO_RECOMMEND_MODES, "balanced", COMBO_RECOMMEND_MODES.length);
 }
 
 function renderTickets(tickets) {
@@ -474,6 +485,17 @@ async function generateTickets({ replaceCurrentIssue = false } = {}) {
   if (replaceCurrentIssue) await replaceCurrentIssueTicketRecords();
   await saveRecords(state.tickets.map((ticket) => toRecord(ticket, "ticket")));
   setStatus("已生成建议号", `${state.tickets.length} 注，策略：${strategyLabels[selected] || selected}`);
+}
+
+async function generateComboRecommendTickets() {
+  if (!state.analysis) {
+    setStatus("请先刷新数据", "开奖数据加载后才能生成推荐组合", "warn");
+    return;
+  }
+  state.tickets = generateComboRecommendBatch();
+  renderTickets(state.tickets);
+  await saveRecords(state.tickets.map((ticket) => toRecord(ticket, "ticket")));
+  setStatus("已生成推荐组合", "热号 1 注 + 蓝球 2 注 + 冷号 1 注 + 社区 1 注");
 }
 
 async function replaceCurrentIssueTicketRecords() {
@@ -913,6 +935,7 @@ function wireEvents() {
   els.navButtons.forEach((button) => button.addEventListener("click", () => setActiveView(button.dataset.mobileTab)));
   els.refreshDrawsBtn.addEventListener("click", () => fetchDraws(true));
   els.generateBtn.addEventListener("click", () => generateTickets());
+  els.comboRecommendBtn.addEventListener("click", generateComboRecommendTickets);
   els.replaceBtn.addEventListener("click", () => generateTickets({ replaceCurrentIssue: true }));
   els.completePickBtn.addEventListener("click", completeManualTicket);
   els.clearPickBtn.addEventListener("click", clearManualSelection);

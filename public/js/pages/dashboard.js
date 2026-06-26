@@ -9,11 +9,13 @@ import { bootstrapDashboardData } from "./bootstrap.js";
 
 const $ = (selector) => document.querySelector(selector);
 const TICKET_BATCH_SIZE = 6;
+const COMBO_RECOMMEND_MODES = ["hot", "blue", "blue", "cold", "community"];
 
 const els = {
   limitInput: $("#limitInput"),
   fetchDrawsBtn: $("#fetchDrawsBtn"),
   generateBtn: $("#generateBtn"),
+  comboRecommendBtn: $("#comboRecommendBtn"),
   refreshTicketsBtn: $("#refreshTicketsBtn"),
   communityBtn: $("#communityBtn"),
   exportBtn: $("#exportBtn"),
@@ -489,12 +491,16 @@ function buildTicketModes(selected, size = TICKET_BATCH_SIZE) {
 
 function generateTicketBatch(selected, size = TICKET_BATCH_SIZE) {
   const modes = buildTicketModes(selected, size);
+  return generateTicketsByModes(modes, selected, size);
+}
+
+function generateTicketsByModes(modes, fallbackMode = "balanced", size = modes.length) {
   const tickets = [];
   const seen = new Set();
   let guard = 0;
 
   while (tickets.length < size && guard < size * 16) {
-    const mode = modes[tickets.length % modes.length] || selected;
+    const mode = modes[tickets.length % modes.length] || fallbackMode;
     const ticket = generateTicket(state.analysis, mode, state.community);
     const key = drawKey(ticket);
     if (!seen.has(key)) {
@@ -505,11 +511,16 @@ function generateTicketBatch(selected, size = TICKET_BATCH_SIZE) {
   }
 
   while (tickets.length < size) {
-    const ticket = generateTicket(state.analysis, selected, state.community);
+    const mode = modes[tickets.length % modes.length] || fallbackMode;
+    const ticket = generateTicket(state.analysis, mode, state.community);
     tickets.push(ticket);
   }
 
   return tickets.slice(0, size);
+}
+
+function generateComboRecommendBatch() {
+  return generateTicketsByModes(COMBO_RECOMMEND_MODES, "balanced", COMBO_RECOMMEND_MODES.length);
 }
 
 function syncCurrentIssueTicketsFromRecords() {
@@ -804,6 +815,30 @@ async function generateTickets({ replaceCurrentIssue = false } = {}) {
   } catch (error) {
     syncAuth(error?.data);
     setStatus("建议号生成失败", error.message, "warn");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function generateComboRecommendTickets() {
+  if (!state.analysis) {
+    setStatus("请先获取开奖数据", "没有历史样本时无法生成推荐组合", "warn");
+    return;
+  }
+  setBusy(true);
+  try {
+    const tickets = generateComboRecommendBatch();
+    renderTickets(tickets);
+    const saveResult = await saveRecords(tickets.map((ticket) => toRecord(ticket, "ticket")));
+    els.ticketMode.textContent = "推荐组合 · 热1 蓝2 冷1 社1";
+    if (saveResult?.ok) {
+      setStatus("已生成推荐组合", "热号追踪 1 注 + 蓝球重点 2 注 + 冷号补位 1 注 + 社区共振 1 注");
+    } else if (saveResult?.authRequired) {
+      setStatus("已生成推荐组合", "当前未登录，仅本地展示；登录后可自动保存。", "warn");
+    }
+  } catch (error) {
+    syncAuth(error?.data);
+    setStatus("推荐组合生成失败", error.message, "warn");
   } finally {
     setBusy(false);
   }
@@ -1353,6 +1388,7 @@ async function fetchCommunity() {
 function wireEvents() {
   els.fetchDrawsBtn.addEventListener("click", () => fetchDraws(true));
   els.generateBtn.addEventListener("click", () => generateTickets());
+  els.comboRecommendBtn?.addEventListener("click", generateComboRecommendTickets);
   els.refreshTicketsBtn?.addEventListener("click", () => generateTickets({ replaceCurrentIssue: true }));
   els.communityBtn.addEventListener("click", fetchCommunity);
   els.exportBtn.addEventListener("click", downloadCsv);

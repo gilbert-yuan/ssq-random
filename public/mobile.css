@@ -185,6 +185,11 @@ body.mobile-page {
   padding: 0 10px;
 }
 
+.mobile-combo-button {
+  width: 100%;
+  background: var(--green-soft);
+}
+
 .mobile-number-block {
   display: grid;
   gap: 10px;
