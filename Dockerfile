@@ -1,4 +1,4 @@
-ARG NODE_IMAGE=node:22-bookworm-slim
+ARG NODE_IMAGE=node:20-bullseye-slim
 FROM ${NODE_IMAGE}
 
 WORKDIR /app

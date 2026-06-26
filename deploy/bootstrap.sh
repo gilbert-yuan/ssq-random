@@ -8,11 +8,12 @@ INSTALL_DEPS="${INSTALL_DEPS:-0}"
 # BRANCH: if not set, clone the default branch (no forced branch)
 
 # China mirror support: set NODE_IMAGE / POSTGRES_IMAGE in .env
-# e.g. NODE_IMAGE=docker.1ms.run/node:22-bookworm-slim
+# e.g. NODE_IMAGE=docker.1ms.run/node:20-bullseye-slim
 #      POSTGRES_IMAGE=docker.1ms.run/postgres:16-alpine
 #
-# Ubuntu 16 / old kernel hosts: use Node 22 LTS (default)
-# Node 24 requires kernel >= 4.18, may crash on Ubuntu 16 (kernel 4.4)
+# Ubuntu 16 / old kernel hosts (kernel < 4.18):
+#   Use Node 20 + bullseye-slim (default) for maximum compatibility.
+#   Node 22+ requires kernel >= 4.18, will crash on Ubuntu 16 (kernel 4.4).
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
