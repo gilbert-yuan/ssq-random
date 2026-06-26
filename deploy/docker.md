@@ -48,13 +48,13 @@ chmod +x deploy/upgrade.sh
 老版 Docker Compose：
 
 ```bash
-docker-compose up -d --build
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker-compose up -d --build
 ```
 
 新版 Docker Compose：
 
 ```bash
-docker compose up -d --build
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose up -d --build
 ```
 
 ## 3. 查看状态和日志
@@ -81,7 +81,7 @@ curl -v https://ssq.gilbert.ink
 
 ```bash
 git pull
-docker-compose up -d --build
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker-compose up -d --build
 ```
 
 也可以使用一键升级编译脚本：
@@ -104,6 +104,19 @@ SKIP_GIT_PULL=1 ./deploy/upgrade.sh
 ```
 
 ## 6. 停止
+
+默认一键脚本会关闭 BuildKit，避免 Docker 去拉取 `moby/buildkit:buildx-stable-1`：
+
+```bash
+DOCKER_BUILDKIT=0
+COMPOSE_DOCKER_CLI_BUILD=0
+```
+
+如果服务器可以正常访问 Docker Hub，并且要启用 BuildKit：
+
+```bash
+DISABLE_BUILDKIT=0 ./deploy/upgrade.sh
+```
 
 ```bash
 docker-compose down

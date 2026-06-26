@@ -3,7 +3,7 @@ version: "3.3"
 services:
   app:
     build: .
-    container_name: ssq-random-app
+    container_name: .Dockerfile
     restart: always
     environment:
       NODE_ENV: production

@@ -5,8 +5,14 @@ APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 BRANCH="${BRANCH:-feat/dashboard-picks-records}"
 APP_PORT="${APP_PORT:-5173}"
 SKIP_GIT_PULL="${SKIP_GIT_PULL:-0}"
+DISABLE_BUILDKIT="${DISABLE_BUILDKIT:-1}"
 
 cd "$APP_DIR"
+
+if [ "$DISABLE_BUILDKIT" = "1" ]; then
+  export DOCKER_BUILDKIT=0
+  export COMPOSE_DOCKER_CLI_BUILD=0
+fi
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -94,6 +100,9 @@ echo "Pulling service images..."
 compose pull postgres
 
 echo "Building and restarting services..."
+if [ "$DISABLE_BUILDKIT" = "1" ]; then
+  echo "BuildKit disabled: DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0"
+fi
 compose up -d --build
 
 echo "Container status:"
