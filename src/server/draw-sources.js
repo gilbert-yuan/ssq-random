@@ -1,4 +1,6 @@
 const path = require("node:path");
+const http = require("node:http");
+const https = require("node:https");
 const { URL } = require("node:url");
 const { CACHE_DIR, REQUEST_HEADERS, SAMPLE_FILE } = require("./config");
 const { readJson, writeJson } = require("./json-store");
@@ -31,6 +33,10 @@ function fallbackHistoryUrl(limit) {
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  if (typeof fetch !== "function") {
+    return fetchWithNodeHttp(url, options, timeoutMs);
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -47,6 +53,46 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function fetchWithNodeHttp(url, options = {}, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(String(url));
+    const transport = target.protocol === "https:" ? https : http;
+    const requestHeaders = {
+      ...REQUEST_HEADERS,
+      ...(options.headers || {})
+    };
+    const request = transport.request(
+      target,
+      {
+        method: options.method || "GET",
+        headers: requestHeaders,
+        timeout: timeoutMs
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => {
+          const body = Buffer.concat(chunks);
+          const text = () => Promise.resolve(body.toString("utf8"));
+          resolve({
+            ok: response.statusCode >= 200 && response.statusCode < 300,
+            status: response.statusCode,
+            statusText: response.statusMessage || "",
+            headers: response.headers,
+            text,
+            json: async () => JSON.parse(await text())
+          });
+        });
+      }
+    );
+
+    request.on("timeout", () => request.destroy(new Error(`request timeout after ${timeoutMs}ms`)));
+    request.on("error", reject);
+    if (options.body) request.write(options.body);
+    request.end();
+  });
 }
 
 function isFreshCache(cached, ttlMs) {
