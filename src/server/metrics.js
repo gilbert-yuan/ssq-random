@@ -293,6 +293,8 @@ function summarizeIndicators(rows) {
 }
 
 module.exports = {
+  classifyParity,
+  classifySum,
   computeIndicators,
   getDrawShape,
   linearRegression,

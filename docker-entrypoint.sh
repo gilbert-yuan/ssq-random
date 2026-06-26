@@ -1,14 +1,14 @@
 #!/bin/sh
 set -eu
 
-echo "Waiting for PostgreSQL..."
+echo "==> Waiting for PostgreSQL..."
 
 node <<'NODE'
 const net = require("node:net");
 
 const rawUrl = process.env.DATABASE_URL;
 if (!rawUrl) {
-  console.error("DATABASE_URL is required.");
+  console.error("[ERROR] DATABASE_URL is required.");
   process.exit(1);
 }
 
@@ -19,7 +19,7 @@ try {
   host = url.hostname;
   port = Number(url.port || 5432);
 } catch (error) {
-  console.error(`Invalid DATABASE_URL: ${error.message}`);
+  console.error(`[ERROR] Invalid DATABASE_URL: ${error.message}`);
   process.exit(1);
 }
 
@@ -28,11 +28,12 @@ function waitForDatabase(attempt = 1) {
   const timeout = setTimeout(() => {
     socket.destroy();
     retry(attempt);
-  }, 1000);
+  }, 2000);
 
   socket.once("connect", () => {
     clearTimeout(timeout);
     socket.end();
+    console.log(`[OK] PostgreSQL is reachable at ${host}:${port}`);
     process.exit(0);
   });
 
@@ -43,9 +44,12 @@ function waitForDatabase(attempt = 1) {
 }
 
 function retry(attempt) {
-  if (attempt >= 60) {
-    console.error(`PostgreSQL is not reachable at ${host}:${port}.`);
+  if (attempt >= 30) {
+    console.error(`[ERROR] PostgreSQL not reachable at ${host}:${port} after 30 attempts.`);
     process.exit(1);
+  }
+  if (attempt % 10 === 0) {
+    console.log(`  Still waiting... (attempt ${attempt})`);
   }
   setTimeout(() => waitForDatabase(attempt + 1), 1000);
 }
@@ -53,5 +57,5 @@ function retry(attempt) {
 waitForDatabase();
 NODE
 
-echo "Starting SSQ random app..."
-exec npm run start:node
+echo "==> Starting SSQ Random app..."
+exec node server.js

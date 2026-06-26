@@ -4,7 +4,7 @@ function sendJson(res, status, payload, headers = {}) {
     "Cache-Control": "no-store",
     ...headers
   });
-  res.end(JSON.stringify(payload, null, 2));
+  res.end(JSON.stringify(payload));
 }
 
 function sendText(res, status, body, contentType = "text/plain; charset=utf-8") {

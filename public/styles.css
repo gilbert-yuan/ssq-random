@@ -26,6 +26,9 @@
   --shadow-lg: 6px 6px 0 var(--border);
   --radius: 18px;
   --radius-sm: 12px;
+  --font-body: "Hanken Grotesk", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Hanken Grotesk", "PingFang SC", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", monospace;
 }
 
 * {
@@ -53,7 +56,7 @@ body {
     linear-gradient(90deg, transparent 0 48px, rgba(96, 165, 250, 0.16) 48px 51px, transparent 51px),
     linear-gradient(180deg, var(--paper) 0%, var(--sky) 100%);
   background-size: 20px 20px, auto, auto;
-  font-family: "Hanken Grotesk", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-body);
   text-rendering: optimizeLegibility;
 }
 
@@ -153,7 +156,7 @@ p {
 
 h1,
 h2 {
-  font-family: "Bricolage Grotesque", "Hanken Grotesk", "PingFang SC", sans-serif;
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
 
@@ -168,13 +171,13 @@ h2 {
 }
 
 .app-shell {
-  width: min(1520px, calc(100% - 28px));
+  width: min(1440px, calc(100% - 24px));
   margin: 0 auto;
   min-height: 100vh;
   padding: 12px 0 14px;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 12px;
 }
 
 .panel {
@@ -201,7 +204,7 @@ h2 {
 
 .hero-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
   gap: 16px;
   align-items: start;
   padding: 18px;
@@ -213,7 +216,7 @@ h2 {
 .eyebrow {
   margin-bottom: 10px;
   color: var(--ink-soft);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -287,7 +290,7 @@ h2 {
   border-radius: 999px;
   padding: 8px 14px;
   background: var(--orange-soft);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
 }
@@ -420,7 +423,7 @@ h2 {
 
 .auth-panel-head h3 {
   margin-top: 6px;
-  font-family: "Bricolage Grotesque", "Hanken Grotesk", "PingFang SC", sans-serif;
+  font-family: var(--font-display);
   font-size: 1.7rem;
   line-height: 1.1;
 }
@@ -431,7 +434,7 @@ h2 {
 
 .auth-kicker {
   color: var(--ink-soft);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -655,7 +658,7 @@ h2 {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   gap: 14px;
   min-height: 0;
   height: 100%;
@@ -884,7 +887,7 @@ textarea#sourceUrls {
 .account-stat strong {
   display: block;
   margin-top: 6px;
-  font-family: "Bricolage Grotesque", "JetBrains Mono", sans-serif;
+  font-family: var(--font-display);
   font-size: 1.55rem;
   line-height: 1;
 }
@@ -1097,15 +1100,12 @@ textarea#sourceUrls {
   line-height: 1.3;
 }
 
-.summary-grid,
-.backtest-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+.summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
-.summary-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+.backtest-grid {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
 
 .metric {
@@ -1160,7 +1160,7 @@ textarea#sourceUrls {
 .metric strong {
   display: block;
   margin-top: 6px;
-  font-family: "Bricolage Grotesque", "JetBrains Mono", sans-serif;
+  font-family: var(--font-display);
   font-size: 20px;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
@@ -1206,7 +1206,7 @@ textarea#sourceUrls {
 }
 
 .ticket-head span:last-child {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 
 .ticket-inline-row {
@@ -1445,7 +1445,7 @@ textarea#sourceUrls {
 .shape-item strong {
   display: block;
   margin-top: 6px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 15px;
   line-height: 1.25;
 }
@@ -1527,7 +1527,7 @@ textarea#sourceUrls {
 
 .score-row b {
   text-align: right;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1591,7 +1591,7 @@ textarea#sourceUrls {
 .mini-title {
   margin-bottom: 10px;
   color: var(--ink-soft);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1668,7 +1668,7 @@ textarea#sourceUrls {
 }
 
 .position-row strong {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1730,7 +1730,7 @@ textarea#sourceUrls {
 .chart-marker-text {
   fill: var(--ink-soft);
   font-size: 11px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1763,7 +1763,7 @@ textarea#sourceUrls {
 
 .classification-row strong {
   grid-row: span 2;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1794,7 +1794,7 @@ footer {
 
 @media (max-width: 1320px) {
   .summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   }
 
   .shape-grid {
@@ -1870,11 +1870,15 @@ footer {
   .tab-content-picks .numbers-panel .tickets {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .account-user-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
   .app-shell {
-    width: min(100% - 20px, 1520px);
+    width: min(100% - 16px, 100%);
   }
 
   .auth-grid {
@@ -1886,7 +1890,7 @@ footer {
   }
 
   .account-stats {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .tabbar {
@@ -1905,14 +1909,17 @@ footer {
   }
 
   .left-rail,
-  .summary-grid,
-  .backtest-grid,
   .tickets,
   .manual-grid,
   .manual-result-grid,
   .classification-list,
   .shape-grid {
     grid-template-columns: 1fr;
+  }
+
+  .summary-grid,
+  .backtest-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   }
 
   .record-row,
@@ -1959,17 +1966,22 @@ footer {
 
 @media (max-width: 640px) {
   h1 {
-    font-size: 2.1rem;
+    font-size: 1.8rem;
+  }
+
+  h2 {
+    font-size: 1.05rem;
   }
 
   .app-shell {
-    width: min(100% - 16px, 1520px);
+    width: 100%;
     padding: 8px 0 12px;
     gap: 8px;
   }
 
   .panel {
     padding: 12px;
+    border-radius: var(--radius-sm);
   }
 
   .status-band,
@@ -1982,6 +1994,7 @@ footer {
   .top-tabbar {
     align-items: flex-start;
     flex-direction: column;
+    border-radius: 16px;
   }
 
   .actions,
@@ -2000,7 +2013,7 @@ footer {
   }
 
   .status-band {
-    border-radius: 22px;
+    border-radius: 16px;
   }
 
   .top-auth-badge,
@@ -2040,5 +2053,39 @@ footer {
   .chart-axis,
   .chart-marker-text {
     font-size: 10px;
+  }
+
+  .hero-panel {
+    padding: 14px;
+  }
+
+  .hero-tags {
+    gap: 6px;
+  }
+
+  .hero-tag {
+    font-size: 11px;
+    padding: 0 10px;
+    min-height: 28px;
+  }
+
+  .ball {
+    width: 30px;
+    height: 30px;
+    font-size: 11px;
+  }
+
+  .ball.small {
+    width: 26px;
+    height: 26px;
+    font-size: 10px;
+  }
+
+  .tickets {
+    grid-template-columns: 1fr;
+  }
+
+  .account-panel {
+    padding: 14px;
   }
 }

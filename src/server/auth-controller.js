@@ -1,5 +1,29 @@
 const { clearSessionCookie, isMiniProgramRequest, loginUser, makeSessionCookie, registerUser, resolveRequestUser, revokeSession } = require("./auth");
+const { rateLimited } = require("./errors");
 const { readJsonBody, sendJson } = require("./http");
+
+const AUTH_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const AUTH_RATE_LIMIT_MAX = 10;
+const authAttempts = new Map();
+
+function getClientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (forwarded) return String(forwarded).split(",")[0].trim();
+  return req.socket?.remoteAddress || "unknown";
+}
+
+function checkAuthRateLimit(ip) {
+  const now = Date.now();
+  const entry = authAttempts.get(ip);
+  if (!entry || now - entry.firstAt > AUTH_RATE_LIMIT_WINDOW_MS) {
+    authAttempts.set(ip, { count: 1, firstAt: now });
+    return;
+  }
+  entry.count += 1;
+  if (entry.count > AUTH_RATE_LIMIT_MAX) {
+    throw rateLimited("too many auth attempts, please try again later");
+  }
+}
 
 function authPayload(user, extra = {}) {
   return {
@@ -36,6 +60,7 @@ async function handleAuth(req, reqUrl, res) {
       sendJson(res, 405, { ok: false, error: "method not allowed" });
       return;
     }
+    checkAuthRateLimit(getClientIp(req));
     const payload = await readJsonBody(req);
     const result = await registerUser(payload, isMiniProgramRequest(req, payload) ? "miniprogram" : "web");
     const response = normalizeSessionResponse(req, result);
@@ -48,6 +73,7 @@ async function handleAuth(req, reqUrl, res) {
       sendJson(res, 405, { ok: false, error: "method not allowed" });
       return;
     }
+    checkAuthRateLimit(getClientIp(req));
     const payload = await readJsonBody(req);
     const result = await loginUser(payload, isMiniProgramRequest(req, payload) ? "miniprogram" : "web");
     const response = normalizeSessionResponse(req, result);

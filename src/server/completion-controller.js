@@ -1,22 +1,10 @@
 const { readIndicators } = require("./database");
 const { ensureStoredDraws } = require("./draw-controller");
-const { readRequestBody, sendJson } = require("./http");
-const { getDrawShape, makeNumberStats } = require("./metrics");
+const { methodNotAllowed } = require("./errors");
+const { readJsonBody, sendJson } = require("./http");
+const { classifyParity, classifySum, getDrawShape, makeNumberStats } = require("./metrics");
 const { buildWeights, ticketFitness } = require("./strategy");
 const { padBall, parseBallList } = require("./utils");
-
-function classifySum(sum) {
-  if (sum <= 80) return "低和值";
-  if (sum <= 110) return "中和值";
-  if (sum <= 135) return "高和值";
-  return "极高和值";
-}
-
-function classifyParity(odd) {
-  if (odd >= 5) return "偏奇";
-  if (odd <= 1) return "偏偶";
-  return "均衡奇偶";
-}
 
 function percentile(rows, key, value) {
   const values = rows.map((row) => Number(row[key])).filter(Number.isFinite);
@@ -171,12 +159,10 @@ function buildPosition(ticket, shape, indicators, redStats) {
 
 async function handleCompleteTicket(req, res) {
   if (req.method !== "POST") {
-    sendJson(res, 405, { error: "method not allowed" });
-    return;
+    throw methodNotAllowed("method not allowed");
   }
 
-  const body = await readRequestBody(req);
-  const payload = body ? JSON.parse(body) : {};
+  const payload = await readJsonBody(req);
   const selectedReds = Array.from(new Set(parseBallList(payload.reds || payload.red || [], 33))).slice(0, 6);
   const selectedBlue = parseBallList(payload.blue || payload.blues || "", 16)[0] || "";
   const strategy = ["balanced", "hot", "cold", "community", "blue"].includes(payload.strategy)

@@ -2,6 +2,7 @@ const { LEGACY_RECORDS_FILE } = require("./config");
 const { resolveRequestUser } = require("./auth");
 const { appendRecords, countRecords, deleteRecord, readRecords, setRecordPinned } = require("./database");
 const { ensureStoredDraws } = require("./draw-controller");
+const { badRequest, unauthorized } = require("./errors");
 const { readJson } = require("./json-store");
 const { readJsonBody, sendJson } = require("./http");
 const { annotateRecords, buildJackpotAnnouncements, buildRecordSummary, buildSourcePerformance } = require("./record-results");
@@ -23,11 +24,10 @@ async function migrateLegacyRecords() {
   return legacyMigrationPromise;
 }
 
-function unauthorizedError() {
-  const error = new Error("login required");
-  error.statusCode = 401;
-  error.code = "AUTH_REQUIRED";
-  return error;
+function requireAuth(authState) {
+  const userId = authState.user?.id || "";
+  if (!userId) throw unauthorized("login required", "AUTH_REQUIRED");
+  return userId;
 }
 
 function emptyRecordPayload(draws, authState) {
@@ -51,32 +51,26 @@ async function handleRecords(req, reqUrl, res) {
   const userId = authState.user?.id || "";
 
   if (req.method === "DELETE") {
-    if (!userId) throw unauthorizedError();
+    const userId = requireAuth(authState);
     const id = reqUrl.searchParams.get("id");
-    if (!id) {
-      sendJson(res, 400, { ok: false, error: "missing record id" });
-      return;
-    }
+    if (!id) throw badRequest("missing record id");
     const deleted = await deleteRecord(id, userId);
     sendJson(res, 200, { ok: true, deleted });
     return;
   }
 
   if (req.method === "PATCH") {
-    if (!userId) throw unauthorizedError();
+    const userId = requireAuth(authState);
     const payload = await readJsonBody(req);
     const id = String(payload.id || reqUrl.searchParams.get("id") || "");
-    if (!id) {
-      sendJson(res, 400, { ok: false, error: "missing record id" });
-      return;
-    }
+    if (!id) throw badRequest("missing record id");
     const result = await setRecordPinned(id, Boolean(payload.pinned), userId);
     sendJson(res, 200, { ok: true, ...result });
     return;
   }
 
   if (req.method === "POST") {
-    if (!userId) throw unauthorizedError();
+    const userId = requireAuth(authState);
     const payload = await readJsonBody(req);
     const items = Array.isArray(payload.records) ? payload.records : [payload.record || payload];
     const normalized = items.map(normalizeRecord).filter(Boolean);

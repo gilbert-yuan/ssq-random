@@ -10,46 +10,58 @@ const { handleRecords } = require("./records-controller");
 const { sendJson } = require("./http");
 const { serveStatic } = require("./static-controller");
 
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+};
+
+function handleHealth(req, reqUrl, res) {
+  sendJson(res, 200, { ok: true, time: new Date().toISOString() });
+}
+
+const exactRoutes = {
+  "/api/health": handleHealth,
+  "/api/draws": (req, reqUrl, res) => handleDraws(reqUrl, res),
+  "/api/metrics": (req, reqUrl, res) => handleMetrics(reqUrl, res),
+  "/api/mobile/home": handleMobileHome,
+  "/api/mobile/picks": handleMobilePicks,
+  "/api/community": handleCommunity,
+  "/api/records": handleRecords,
+  "/api/complete-ticket": (req, reqUrl, res) => handleCompleteTicket(req, res)
+};
+
+const prefixRoutes = [
+  { prefix: "/api/auth/", handler: handleAuth }
+];
+
 function createApp() {
   return http.createServer(async (req, res) => {
+    Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
+      res.setHeader(key, value);
+    });
+
     const reqUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     try {
-      if (reqUrl.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, time: new Date().toISOString() });
+      const exactHandler = exactRoutes[reqUrl.pathname];
+      if (exactHandler) {
+        await exactHandler(req, reqUrl, res);
         return;
       }
-      if (reqUrl.pathname.startsWith("/api/auth/")) {
-        await handleAuth(req, reqUrl, res);
+
+      for (const { prefix, handler } of prefixRoutes) {
+        if (reqUrl.pathname.startsWith(prefix)) {
+          await handler(req, reqUrl, res);
+          return;
+        }
+      }
+
+      if (reqUrl.pathname.startsWith("/api/")) {
+        sendJson(res, 404, { ok: false, error: "not found", code: "NOT_FOUND" });
         return;
       }
-      if (reqUrl.pathname === "/api/draws") {
-        await handleDraws(reqUrl, res);
-        return;
-      }
-      if (reqUrl.pathname === "/api/metrics") {
-        await handleMetrics(reqUrl, res);
-        return;
-      }
-      if (reqUrl.pathname === "/api/mobile/home") {
-        await handleMobileHome(req, reqUrl, res);
-        return;
-      }
-      if (reqUrl.pathname === "/api/mobile/picks") {
-        await handleMobilePicks(req, reqUrl, res);
-        return;
-      }
-      if (reqUrl.pathname === "/api/community") {
-        await handleCommunity(req, reqUrl, res);
-        return;
-      }
-      if (reqUrl.pathname === "/api/records") {
-        await handleRecords(req, reqUrl, res);
-        return;
-      }
-      if (reqUrl.pathname === "/api/complete-ticket") {
-        await handleCompleteTicket(req, res);
-        return;
-      }
+
       await serveStatic(reqUrl, res);
     } catch (error) {
       sendJson(res, error.statusCode || 500, {
