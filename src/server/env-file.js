@@ -1,4 +1,4 @@
-const fs = require("node:fs");
+const fs = require("fs");
 
 function parseDotEnv(filePath) {
   if (!fs.existsSync(filePath)) return {};

@@ -1,4 +1,4 @@
-const path = require("node:path");
+const path = require("path");
 const { CACHE_DIR } = require("./config");
 const { fetchWithTimeout } = require("./draw-sources");
 const { readJson, writeJson } = require("./json-store");

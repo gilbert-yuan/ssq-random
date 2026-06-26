@@ -1,4 +1,4 @@
-const crypto = require("node:crypto");
+const crypto = require("crypto");
 
 function clampInt(value, fallback, min, max) {
   const parsed = Number.parseInt(value, 10);

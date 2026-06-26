@@ -1,5 +1,5 @@
-const http = require("node:http");
-const { URL } = require("node:url");
+const http = require("http");
+const { URL } = require("url");
 const { handleAuth } = require("./auth-controller");
 const { handleCommunity } = require("./community-controller");
 const { handleCompleteTicket } = require("./completion-controller");

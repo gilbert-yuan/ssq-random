@@ -26,8 +26,8 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 node_major="$(node -v | sed 's/v//' | cut -d. -f1)"
-if [ "$node_major" -lt 20 ]; then
-  echo "[ERROR] Node.js $(node -v) 版本过低，需要 v20+。" >&2
+if [ "$node_major" -lt 14 ]; then
+  echo "[ERROR] Node.js $(node -v) 版本过低，需要 v14+。" >&2
   exit 1
 fi
 

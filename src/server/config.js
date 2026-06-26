@@ -1,4 +1,4 @@
-const path = require("node:path");
+const path = require("path");
 const { loadDotEnv } = require("./env-file");
 
 const ROOT_DIR = path.join(__dirname, "..", "..");

@@ -1,6 +1,6 @@
-const { spawn } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
+const { spawn } = require("child_process");
+const fs = require("fs");
+const path = require("path");
 const { loadDotEnv } = require("../src/server/env-file");
 
 const CHECK_FILES = [

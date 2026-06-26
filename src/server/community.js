@@ -1,6 +1,6 @@
-const dns = require("node:dns/promises");
-const net = require("node:net");
-const { URL } = require("node:url");
+const dns = require("dns").promises;
+const net = require("net");
+const { URL } = require("url");
 const { COMMUNITY_SOURCES_FILE } = require("./config");
 const { fetchWithTimeout } = require("./draw-sources");
 const { readJson } = require("./json-store");
@@ -78,33 +78,35 @@ async function validateSource(source) {
 const MAX_HTML_BYTES = 4 * 1024 * 1024;
 
 async function readBodyWithLimit(response, limit) {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    const ab = await response.arrayBuffer();
-    if (ab.byteLength > limit) throw new Error(`response exceeded ${limit} bytes`);
-    return new Uint8Array(ab);
-  }
-  const chunks = [];
-  let total = 0;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > limit) {
-      try {
-        await reader.cancel();
-      } catch {}
-      throw new Error(`response exceeded ${limit} bytes`);
+  // fetch API ReadableStream path (Node 18+)
+  if (typeof response.body !== "undefined" && response.body && typeof response.body.getReader === "function") {
+    const reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        try {
+          await reader.cancel();
+        } catch {}
+        throw new Error(`response exceeded ${limit} bytes`);
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return merged;
   }
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return merged;
+  // node http fallback (arrayBuffer returns ArrayBuffer)
+  const ab = await response.arrayBuffer();
+  if (ab.byteLength > limit) throw new Error(`response exceeded ${limit} bytes`);
+  return new Uint8Array(ab);
 }
 
 async function fetchHtml(source) {

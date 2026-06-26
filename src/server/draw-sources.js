@@ -1,7 +1,7 @@
-const path = require("node:path");
-const http = require("node:http");
-const https = require("node:https");
-const { URL } = require("node:url");
+const path = require("path");
+const http = require("http");
+const https = require("https");
+const { URL } = require("url");
 const { CACHE_DIR, REQUEST_HEADERS, SAMPLE_FILE } = require("./config");
 const { readJson, writeJson } = require("./json-store");
 const { normalizeDigits, normalizeDraw, padBall } = require("./utils");
@@ -75,14 +75,18 @@ function fetchWithNodeHttp(url, options = {}, timeoutMs = 12000) {
         response.on("data", (chunk) => chunks.push(chunk));
         response.on("end", () => {
           const body = Buffer.concat(chunks);
+          const rawHeaders = response.headers;
           const text = () => Promise.resolve(body.toString("utf8"));
           resolve({
             ok: response.statusCode >= 200 && response.statusCode < 300,
             status: response.statusCode,
             statusText: response.statusMessage || "",
-            headers: response.headers,
+            headers: {
+              get: (name) => rawHeaders[name.toLowerCase()] || null
+            },
             text,
-            json: async () => JSON.parse(await text())
+            json: async () => JSON.parse(await text()),
+            arrayBuffer: () => Promise.resolve(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength))
           });
         });
       }

@@ -1,4 +1,4 @@
-const path = require("node:path");
+const path = require("path");
 const { readDotEnvWithOverrides } = require("./src/server/env-file");
 
 const ROOT_DIR = __dirname;

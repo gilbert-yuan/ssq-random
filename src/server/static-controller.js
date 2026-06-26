@@ -1,6 +1,6 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs/promises");
-const path = require("node:path");
+const crypto = require("crypto");
+const fs = require("fs/promises");
+const path = require("path");
 const { globalCache } = require("./cache");
 const { MIME_TYPES, PUBLIC_DIR } = require("./config");
 const { sendText } = require("./http");

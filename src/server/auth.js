@@ -1,4 +1,4 @@
-const crypto = require("node:crypto");
+const crypto = require("crypto");
 const { SESSION_COOKIE_NAME, SESSION_TTL_DAYS } = require("./config");
 const { query, withClient } = require("./database");
 

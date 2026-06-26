@@ -3,7 +3,7 @@ set -eu
 
 # ── 裸机一键部署（无 Docker）──────────────────────────
 # 适用于 Ubuntu 16+ / CentOS 7+ 等旧内核服务器
-# 直接安装 Node.js 20 + PostgreSQL + PM2
+# 直接安装 Node.js 14+ + PostgreSQL + PM2
 #
 # 用法:
 #   INSTALL_DEPS=1 sh deploy/bare-metal.sh
@@ -18,7 +18,7 @@ GIT_URL="${GIT_URL:-https://github.com/gilbert-yuan/ssq-random.git}"
 APP_DIR="${APP_DIR:-/opt/ssq-random}"
 APP_PORT="${APP_PORT:-5173}"
 INSTALL_DEPS="${INSTALL_DEPS:-0}"
-NODE_MAJOR=20
+NODE_MAJOR=14
 
 log() { echo "==> $*"; }
 err() { echo "[ERROR] $*" >&2; }
