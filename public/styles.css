@@ -574,6 +574,7 @@ h2 {
   gap: 4px;
   min-width: 0;
   flex: 1 1 auto;
+  overflow-wrap: anywhere;
 }
 
 .status-copy #statusText {
@@ -612,6 +613,8 @@ h2 {
   display: inline-flex;
   align-items: center;
   min-height: 38px;
+  min-width: 0;
+  max-width: 100%;
   border: 2px solid var(--border);
   border-radius: 999px;
   padding: 0 14px;
@@ -623,6 +626,10 @@ h2 {
 
 .top-auth-badge {
   background: var(--blue-soft);
+}
+
+.top-auth-user {
+  overflow-wrap: anywhere;
 }
 
 .top-tabbar {
@@ -689,6 +696,7 @@ textarea#sourceUrls {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .tab-button {
@@ -1190,6 +1198,7 @@ textarea#sourceUrls {
   color: var(--ink-soft);
   font-size: 12px;
   font-weight: 700;
+  flex-wrap: wrap;
 }
 
 .ticket-head span:last-child {
@@ -1475,6 +1484,7 @@ textarea#sourceUrls {
   color: var(--blue);
   font-weight: 700;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .score-row,
@@ -1508,6 +1518,7 @@ textarea#sourceUrls {
   color: var(--ink-soft);
   font-size: 12px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .score-row b {
@@ -1825,7 +1836,7 @@ footer {
   }
 
   .line-chart-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1842,6 +1853,18 @@ footer {
 
   .mobile-only-tab {
     display: inline-flex;
+  }
+
+  .workspace-grid,
+  .main-stage,
+  .tabview,
+  .tab-content {
+    height: auto;
+    overflow: visible;
+  }
+
+  .tab-content-picks .numbers-panel .tickets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1866,11 +1889,15 @@ footer {
     flex-wrap: nowrap;
     overflow-x: auto;
     padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
   }
 
   .tab-button {
     flex: 0 0 auto;
     white-space: nowrap;
+    scroll-snap-align: start;
   }
 
   .left-rail,
@@ -1886,6 +1913,12 @@ footer {
 
   .record-row,
   .score-row {
+    grid-template-columns: 1fr;
+  }
+
+  .line-chart-grid,
+  .tab-content-picks .numbers-panel .tickets,
+  .account-user-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1925,6 +1958,16 @@ footer {
     font-size: 2.1rem;
   }
 
+  .app-shell {
+    width: min(100% - 16px, 1520px);
+    padding: 8px 0 12px;
+    gap: 8px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
   .status-band,
   .panel-title,
   .toolbar {
@@ -1956,6 +1999,17 @@ footer {
     border-radius: 22px;
   }
 
+  .top-auth-badge,
+  .top-auth-user {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .top-status-band {
+    width: 100%;
+  }
+
   .bar-chart {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
@@ -1967,5 +2021,20 @@ footer {
 
   .position-row {
     grid-template-columns: 1fr;
+  }
+
+  .account-stats,
+  .classification-row,
+  .line-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .classification-row strong {
+    grid-row: auto;
+  }
+
+  .chart-axis,
+  .chart-marker-text {
+    font-size: 10px;
   }
 }
