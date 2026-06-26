@@ -62,7 +62,7 @@ function createApp() {
         return;
       }
 
-      await serveStatic(reqUrl, res);
+      await serveStatic(req, reqUrl, res);
     } catch (error) {
       sendJson(res, error.statusCode || 500, {
         ok: false,

@@ -26,7 +26,7 @@ function computeEtag(buffer) {
   return crypto.createHash("md5").update(buffer).digest("hex").slice(0, 16);
 }
 
-async function serveStatic(reqUrl, res) {
+async function serveStatic(req, reqUrl, res) {
   const requestedPath = decodeURIComponent(reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname);
   const safePath = path.normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
   const filePath = path.join(PUBLIC_DIR, safePath);
