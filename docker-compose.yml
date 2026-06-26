@@ -1,0 +1,33 @@
+version: "3.3"
+
+services:
+  app:
+    build: .
+    container_name: ssq-random-app
+    restart: always
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 5173
+      DATABASE_URL: postgresql://ssq:${POSTGRES_PASSWORD:-ssq_random_password}@postgres:5432/ssq_random
+      DB_SSL: "0"
+    ports:
+      - "${APP_PORT:-5173}:5173"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:13-alpine
+    container_name: ssq-random-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ssq_random
+      POSTGRES_USER: ssq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ssq_random_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

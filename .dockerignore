@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log*
+.git
+.codegraph
+.agents
+.codex
+.env
+data/cache
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+Dockerfile
+docker-compose.yml
