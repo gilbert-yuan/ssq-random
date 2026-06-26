@@ -2,11 +2,11 @@
 set -eu
 
 APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-BRANCH="${BRANCH:-main}"
 APP_PORT="${APP_PORT:-5173}"
 SKIP_GIT_PULL="${SKIP_GIT_PULL:-0}"
 DISABLE_BUILDKIT="${DISABLE_BUILDKIT:-1}"
 HEALTH_CHECK="${HEALTH_CHECK:-1}"
+# BRANCH: if not set, auto-detect current branch (no forced branch switch)
 
 cd "$APP_DIR"
 
@@ -95,17 +95,28 @@ update_code() {
     return
   fi
 
-  log "Updating code from origin/$BRANCH..."
-  git fetch origin "$BRANCH"
-
+  # Auto-detect current branch if BRANCH is not explicitly set
   current_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
-  if [ "$current_branch" != "$BRANCH" ]; then
-    git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
+  target_branch="${BRANCH:-$current_branch}"
+
+  if [ -z "$target_branch" ]; then
+    log "Cannot detect current branch and BRANCH is not set. Skipping code update."
+    return
   fi
 
-  git pull --ff-only origin "$BRANCH" || {
+  log "Updating code from origin/$target_branch (current: $current_branch)..."
+  git fetch origin "$target_branch" || {
+    log "git fetch failed. Check network and remote."
+    return 1
+  }
+
+  if [ "$current_branch" != "$target_branch" ]; then
+    git checkout "$target_branch" 2>/dev/null || git checkout -b "$target_branch" "origin/$target_branch"
+  fi
+
+  git pull --ff-only origin "$target_branch" || {
     log "Fast-forward failed. Attempting merge..."
-    git merge "origin/$BRANCH" --no-edit
+    git merge "origin/$target_branch" --no-edit
   }
 
   log "Code updated to: $(git log --oneline -1)"

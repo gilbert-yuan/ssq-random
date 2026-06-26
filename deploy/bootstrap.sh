@@ -2,10 +2,10 @@
 set -eu
 
 GIT_URL="${GIT_URL:-https://github.com/gilbert-yuan/ssq-random.git}"
-BRANCH="${BRANCH:-main}"
 APP_DIR="${APP_DIR:-/opt/ssq-random}"
 APP_PORT="${APP_PORT:-5173}"
 INSTALL_DEPS="${INSTALL_DEPS:-0}"
+# BRANCH: if not set, clone the default branch (no forced branch)
 
 # China mirror support: set NODE_IMAGE / POSTGRES_IMAGE in .env
 # e.g. NODE_IMAGE=docker.1ms.run/node:24-bookworm-slim
@@ -170,8 +170,13 @@ prepare_code() {
     exit 1
   fi
 
-  echo "==> Cloning $GIT_URL (branch: $BRANCH) to $APP_DIR"
-  git clone --branch "$BRANCH" "$GIT_URL" "$APP_DIR"
+  if [ -n "${BRANCH:-}" ]; then
+    echo "==> Cloning $GIT_URL (branch: $BRANCH) to $APP_DIR"
+    git clone --branch "$BRANCH" "$GIT_URL" "$APP_DIR"
+  else
+    echo "==> Cloning $GIT_URL (default branch) to $APP_DIR"
+    git clone "$GIT_URL" "$APP_DIR"
+  fi
 }
 
 check_runtime
@@ -185,4 +190,8 @@ if [ ! -f deploy/upgrade.sh ]; then
 fi
 
 chmod +x deploy/upgrade.sh
-BRANCH="$BRANCH" APP_PORT="$APP_PORT" ./deploy/upgrade.sh
+if [ -n "${BRANCH:-}" ]; then
+  BRANCH="$BRANCH" APP_PORT="$APP_PORT" ./deploy/upgrade.sh
+else
+  APP_PORT="$APP_PORT" ./deploy/upgrade.sh
+fi
