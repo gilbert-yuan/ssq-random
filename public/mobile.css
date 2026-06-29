@@ -377,7 +377,10 @@ body.mobile-page {
 
 .mobile-page .record-inline .ticket-mini-actions {
   flex: 0 0 auto;
+  display: flex;
   gap: 3px;
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
 .mobile-page .ticket-inline-row {
@@ -400,7 +403,8 @@ body.mobile-page {
 
 .mobile-page .ticket-mini-actions .mini-button,
 .mobile-page .record-actions .mini-button,
-.mobile-page .record-actions .small-button {
+.mobile-page .record-actions .small-button,
+.mobile-page .ticket-mini-actions .small-button {
   min-height: 22px;
   padding: 0 5px;
   font-size: 10px;
