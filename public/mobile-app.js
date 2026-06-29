@@ -630,8 +630,10 @@ function renderRecordList() {
           <strong>${escapeHtml(recordTypeLabel(item.type))} · ${escapeHtml(strategyLabels[item.strategy] || item.sourceName || item.strategy || "未标注")}</strong>
           <span>基准 ${escapeHtml(item.baseIssue || "--")}，状态 ${escapeHtml(item.status === "pending" ? "待开奖" : item.status === "won" ? "已中奖" : "未中奖")}</span>
         </div>
-        <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
-        <div class="record-actions">${hitBadge(item.hit)}${copyButton(item)}<button class="small-button" data-delete-record="${escapeHtml(item.id)}" type="button">删除</button></div>
+        <div class="record-inline">
+          <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
+          <div class="record-actions">${hitBadge(item.hit)}${copyButton(item)}<button class="small-button" data-delete-record="${escapeHtml(item.id)}" type="button">删除</button></div>
+        </div>
       </div>
     `
     )
@@ -653,9 +655,11 @@ function renderRecordCollection(container, emptyText, records, deleteAttr) {
           <span>${escapeHtml(item.baseIssue || "未分期")}</span>
           <span>${escapeHtml(item.status || "pending")}</span>
         </div>
-        <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
-        <p>${escapeHtml(item.reason || item.sourceName || "")}</p>
-        <div class="ticket-actions">${hitBadge(item.hit)}${copyButton(item)}<button class="small-button" ${deleteAttr}="${escapeHtml(item.id)}" type="button">删除</button></div>
+        <div class="record-inline">
+          <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
+          <div class="ticket-mini-actions">${hitBadge(item.hit)}${copyButton(item)}<button class="small-button" ${deleteAttr}="${escapeHtml(item.id)}" type="button">删除</button></div>
+        </div>
+        ${item.reason || item.sourceName ? `<p>${escapeHtml(item.reason || item.sourceName || "")}</p>` : ""}
       </div>
     `
     )

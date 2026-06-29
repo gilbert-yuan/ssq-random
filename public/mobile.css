@@ -340,6 +340,31 @@ body.mobile-page {
   grid-template-columns: 1fr;
 }
 
+.mobile-page .record-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.mobile-page .record-inline .ball-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 3px;
+}
+
+.mobile-page .record-inline .record-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.mobile-page .record-inline .ticket-mini-actions {
+  flex: 0 0 auto;
+  gap: 3px;
+}
+
 .mobile-page .ticket-inline-row {
   flex-direction: row;
   flex-wrap: wrap;
@@ -364,6 +389,12 @@ body.mobile-page {
   min-height: 22px;
   padding: 0 5px;
   font-size: 10px;
+}
+
+.mobile-page .hit-badge {
+  min-width: auto;
+  padding: 0 4px;
+  font-size: 9px;
 }
 
 .mobile-page .ball-row {
