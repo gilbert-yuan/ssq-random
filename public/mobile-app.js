@@ -437,12 +437,11 @@ function renderTickets(tickets) {
           <span>${escapeHtml(strategyLabels[ticket.kind] || ticket.kind)}</span>
           <span>${escapeHtml(ticket.score)} 分</span>
         </div>
-        <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
-        <p>${escapeHtml(ticket.reason)}</p>
-        <div class="ticket-actions">
-          ${copyButton(ticket)}
-          <button class="small-button" data-favorite-ticket="${index}" type="button">收藏</button>
+        <div class="record-inline">
+          <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
+          <div class="ticket-mini-actions">${copyButton(ticket)}<button class="small-button" data-favorite-ticket="${index}" type="button">收藏</button></div>
         </div>
+        ${ticket.reason ? `<p>${escapeHtml(ticket.reason)}</p>` : ""}
       </div>
     `
     )
@@ -537,12 +536,11 @@ function renderManualResult() {
         <span>${escapeHtml(strategyLabels[ticket.kind] || ticket.kind)}</span>
         <span>${escapeHtml(ticket.score)} 分 · ${escapeHtml(completion.position?.typeLabel || "")}</span>
       </div>
-      <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
-      <p>${escapeHtml(ticket.reason)}</p>
-      <div class="ticket-actions">
-        ${copyButton(ticket)}
-        <button class="small-button" data-manual-favorite type="button">收藏</button>
+      <div class="record-inline">
+        <div class="ball-row">${ticket.reds.map((red) => ball(red, "red", true)).join("")}${ball(ticket.blue, "blue", true)}</div>
+        <div class="ticket-mini-actions">${copyButton(ticket)}<button class="small-button" data-manual-favorite type="button">收藏</button></div>
       </div>
+      ${ticket.reason ? `<p>${escapeHtml(ticket.reason)}</p>` : ""}
     </div>
   `;
   els.manualPositionList.classList.remove("muted");
