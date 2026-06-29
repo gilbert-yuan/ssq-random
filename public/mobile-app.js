@@ -716,12 +716,12 @@ function renderCommunity() {
   if (data.recommendations?.length) {
     els.communityResults.classList.remove("muted");
     els.communityResults.innerHTML = data.recommendations
-      .slice(0, 6)
+      .slice(0, 12)
       .map(
         (item) => `
         <div class="community-item">
-          <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
-          <p><a href="${safeExternalUrl(item.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.sourceName)}</a></p>
+          <p class="community-numbers">${item.reds.map((r) => String(r).padStart(2, "0")).join(" ")} + ${String(item.blue).padStart(2, "0")}</p>
+          <p class="community-source"><a href="${safeExternalUrl(item.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.sourceName)}</a></p>
           <div class="ticket-actions">${copyButton(item)}<button class="small-button" data-save-community="${escapeHtml(
             data.recommendations.indexOf(item)
           )}" type="button">保存</button></div>
@@ -737,13 +737,13 @@ function renderCommunity() {
   if (data.aggregate?.length) {
     els.communityAggregate.classList.remove("muted");
     els.communityAggregate.innerHTML = data.aggregate
-      .slice(0, 6)
+      .slice(0, 10)
       .map(
         (item) => `
         <div class="ticket">
           <div class="ticket-head"><span>共振 ${item.count}</span><span>${Math.round((item.confidence || 0) * 100)}%</span></div>
-          <div class="ball-row">${item.reds.map((red) => ball(red, "red", true)).join("")}${ball(item.blue, "blue", true)}</div>
-          <p>${escapeHtml(item.sources.slice(0, 2).join(" / "))}</p>
+          <p class="community-numbers">${item.reds.map((r) => String(r).padStart(2, "0")).join(" ")} + ${String(item.blue).padStart(2, "0")}</p>
+          <p class="community-source">${escapeHtml(item.sources.slice(0, 3).join(" / "))}</p>
           <div class="ticket-actions">${copyButton(item)}</div>
         </div>
       `
