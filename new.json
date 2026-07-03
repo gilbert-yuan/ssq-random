@@ -1,0 +1,382 @@
+[
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532430498470001",
+        "name": "订舱单号",
+        "printable": true,
+        "required": true,
+        "type": "input",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532430689190001",
+        "name": "合同编号",
+        "printable": true,
+        "required": true,
+        "type": "input",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532435424160001",
+        "name": "运输方式",
+        "option": [
+            {
+                "value": "mdffxrc2-f1v0g313byg-0",
+                "text": "澳大利亚空运"
+            },
+            {
+                "value": "mdffxrc2-aj62jpzmd6m-1",
+                "text": "澳大利亚海运"
+            },
+            {
+                "value": "mdffxrc2-oqhlbnajhgc-2",
+                "text": "美国空运"
+            },
+            {
+                "value": "mdffxrc2-f7slex19z3p-3",
+                "text": "美国海运慢船"
+            },
+            {
+                "value": "mdffxrc2-nd00j9v2qi8-4",
+                "text": "美国海运快船"
+            },
+            {
+                "value": "mdffxrc2-skp2l3inan-5",
+                "text": "英国海运慢船"
+            },
+            {
+                "value": "mdffxrc2-fl1r0pt4eup-6",
+                "text": "英国海空联运"
+            },
+            {
+                "value": "mdffxrc2-jgsojv7skis-7",
+                "text": "英国卡车联运"
+            },
+            {
+                "value": "mdffxrc2-hjfcfkbwpq-8",
+                "text": "英国卡空"
+            },
+            {
+                "value": "mdffxrc2-e4iv0x5a6nb-9",
+                "text": "英国卡航"
+            },
+            {
+                "value": "mdffxrc2-43q4d1ryvwi-10",
+                "text": "英国铁路"
+            },
+            {
+                "value": "mdffxrc2-tldmjx9hako-11",
+                "text": "英国空运"
+            },
+            {
+                "value": "mdffxrc2-j3tey4ol2bm-12",
+                "text": "英国海运"
+            }
+        ],
+        "printable": true,
+        "required": true,
+        "type": "radioV2",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532430967140001",
+        "name": "箱数",
+        "option": {
+            "maxValue": "",
+            "minValue": ""
+        },
+        "printable": true,
+        "required": true,
+        "type": "number",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532431044980001",
+        "name": "毛重（KG）",
+        "option": {
+            "maxValue": "",
+            "minValue": ""
+        },
+        "printable": true,
+        "required": true,
+        "type": "number",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532431136330001",
+        "name": "体积（m³）",
+        "option": {
+            "maxValue": "",
+            "minValue": ""
+        },
+        "printable": true,
+        "required": true,
+        "type": "number",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532431956650001",
+        "name": "货代公司",
+        "printable": true,
+        "required": true,
+        "type": "input",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532432164730001",
+        "name": "单价",
+        "option": {
+            "currencyRange": [
+                "CNY",
+                "USD"
+            ],
+            "isCapital": false
+        },
+        "printable": true,
+        "required": false,
+        "type": "amount",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17534353019720001",
+        "name": "时效",
+        "printable": true,
+        "required": false,
+        "type": "input",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17534353218350001",
+        "name": "行程",
+        "printable": true,
+        "required": false,
+        "type": "input",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17731953810250001",
+        "name": "最晚批复时间",
+        "printable": true,
+        "required": false,
+        "type": "input",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532432291940001",
+        "name": "选择此货代的理由或者其他说明",
+        "printable": true,
+        "required": false,
+        "type": "textarea",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "children": [
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532432641930001",
+                "name": "PO",
+                "printable": true,
+                "required": true,
+                "type": "input",
+                "visible": true,
+                "widget_default_value": ""
+            },
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532432713210001",
+                "name": "品牌",
+                "printable": true,
+                "required": true,
+                "type": "input",
+                "visible": true,
+                "widget_default_value": ""
+            },
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532432807850001",
+                "name": "款号",
+                "printable": true,
+                "required": true,
+                "type": "input",
+                "visible": true,
+                "widget_default_value": ""
+            },
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532432876880001",
+                "name": "颜色",
+                "printable": true,
+                "required": true,
+                "type": "input",
+                "visible": true,
+                "widget_default_value": ""
+            },
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532433158410001",
+                "name": "件数",
+                "option": {
+                    "maxValue": "",
+                    "minValue": ""
+                },
+                "printable": true,
+                "required": false,
+                "type": "number",
+                "visible": true,
+                "widget_default_value": ""
+            },
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532433330580001",
+                "name": "箱数",
+                "option": {
+                    "maxValue": "",
+                    "minValue": ""
+                },
+                "printable": true,
+                "required": false,
+                "type": "number",
+                "visible": true,
+                "widget_default_value": ""
+            },
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532433234820001",
+                "name": "毛重（KG）",
+                "option": {
+                    "maxValue": "",
+                    "minValue": ""
+                },
+                "printable": true,
+                "required": false,
+                "type": "number",
+                "visible": true,
+                "widget_default_value": ""
+            },
+            {
+                "default_value_type": "",
+                "display_condition": null,
+                "enable_default_value": false,
+                "id": "widget17532433445210001",
+                "name": "体积（m³）",
+                "option": {
+                    "maxValue": "",
+                    "minValue": ""
+                },
+                "printable": true,
+                "required": false,
+                "type": "number",
+                "visible": true,
+                "widget_default_value": ""
+            }
+        ],
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532432546330001",
+        "name": "明细",
+        "option": {
+            "input_type": "FORM",
+            "mobile_detail_type": "CARD",
+            "print_type": "FORM"
+        },
+        "printable": true,
+        "required": true,
+        "type": "fieldList",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17532433656890001",
+        "name": "附件",
+        "option": null,
+        "printable": true,
+        "required": false,
+        "type": "attachmentV2",
+        "visible": true,
+        "widget_default_value": ""
+    },
+    {
+        "default_value_type": "",
+        "display_condition": null,
+        "enable_default_value": false,
+        "id": "widget17542886727370001",
+        "name": "客户组长",
+        "option": {
+            "ignore": false,
+            "multi": true,
+            "range": [
+                1
+            ]
+        },
+        "printable": true,
+        "required": true,
+        "type": "contact",
+        "visible": true,
+        "widget_default_value": ""
+    }
+]

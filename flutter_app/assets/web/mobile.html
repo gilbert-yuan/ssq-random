@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#fff8dc" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="description" content="双色球手机端 - 选号、分析、记录、社区" />
+    <title>双色球分析台 · 手机端</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/mobile.css" />
+  </head>
+  <body class="mobile-page">
+    <div class="mobile-shell">
+      <header class="mobile-header">
+        <div>
+          <p class="mobile-kicker">SSQ MOBILE LAB</p>
+          <h1>双色球分析台</h1>
+        </div>
+        <a class="desktop-link" href="/" aria-label="打开桌面端">桌面端</a>
+      </header>
+
+      <section class="mobile-status" id="mobileStatus" role="status" aria-live="polite">
+        <span class="status-dot"></span>
+        <div>
+          <strong id="mobileStatusText">正在准备数据</strong>
+          <span id="mobileStatusDetail">手机端会保留桌面端的全部核心功能</span>
+        </div>
+      </section>
+
+      <main class="mobile-main">
+        <section class="mobile-view active" id="mobile-home" data-mobile-view="home">
+          <section class="mobile-card latest-card">
+            <div class="mobile-card-head">
+              <h2>最新开奖</h2>
+              <span id="mobileLatestIssue">--</span>
+            </div>
+            <div id="mobileLatestBalls" class="ball-row muted">暂无数据</div>
+            <dl id="mobileLatestMeta" class="meta-list"></dl>
+            <div id="mobileLatestActions" class="ticket-actions muted">加载开奖数据后可复制本期号码</div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>本期速览</h2>
+              <button id="mobileRefreshDrawsBtn" type="button">刷新数据</button>
+            </div>
+            <div id="mobileSummaryGrid" class="summary-grid"></div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>趋势建议</h2>
+              <span id="mobileConfidenceText">--</span>
+            </div>
+            <ul id="mobileAdviceList" class="advice-list"></ul>
+          </section>
+        </section>
+
+        <section class="mobile-view" id="mobile-picks" data-mobile-view="picks" hidden>
+          <section class="mobile-card">
+            <div class="mobile-card-head stacked">
+              <div>
+                <h2>一键建议号</h2>
+                <p>保留桌面端的五种选号策略</p>
+              </div>
+              <select id="mobileStrategySelect" aria-label="选号策略">
+                <option value="balanced">均衡趋势</option>
+                <option value="hot">热号追踪</option>
+                <option value="cold">冷号补位</option>
+                <option value="community">社区共振</option>
+                <option value="blue">蓝球重点</option>
+              </select>
+            </div>
+            <div class="mobile-button-row">
+              <button id="mobileGenerateBtn" class="primary" type="button">生成</button>
+              <button id="mobileReplaceBtn" type="button">替换</button>
+              <button id="mobileComboRecommendBtn" type="button">推荐组合</button>
+            </div>
+            <div id="mobileTickets" class="tickets empty-state">点击生成建议号</div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head stacked">
+              <div>
+                <h2>自选补全</h2>
+                <p>手动点选红球/蓝球后自动补全</p>
+              </div>
+              <select id="mobileManualStrategySelect" aria-label="自选补全策略">
+                <option value="balanced">均衡趋势</option>
+                <option value="hot">热号追踪</option>
+                <option value="cold">冷号补位</option>
+                <option value="community">社区共振</option>
+                <option value="blue">蓝球重点</option>
+              </select>
+            </div>
+            <div class="mobile-number-block">
+              <div class="mini-title">红球</div>
+              <div id="mobileManualRedGrid" class="number-grid red"></div>
+              <div class="mini-title">蓝球</div>
+              <div id="mobileManualBlueGrid" class="number-grid blue"></div>
+            </div>
+            <div class="mobile-action-row">
+              <button id="mobileCompletePickBtn" class="primary" type="button">补全</button>
+              <button id="mobileClearPickBtn" type="button">清空</button>
+            </div>
+            <div id="mobileManualPickResult" class="manual-ticket-result muted">选择部分号码后会自动补全。</div>
+            <div id="mobileManualPositionList" class="position-list muted">暂无指标定位</div>
+          </section>
+        </section>
+
+        <section class="mobile-view" id="mobile-analysis" data-mobile-view="analysis" hidden>
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>红球分布</h2>
+              <span>01-33</span>
+            </div>
+            <div id="mobileRedChart" class="bar-chart"></div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>蓝球分布</h2>
+              <span>01-16</span>
+            </div>
+            <div id="mobileBlueChart" class="bar-chart blue"></div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>形态概览</h2>
+              <span id="mobileShapeScope">近 30 期</span>
+            </div>
+            <div id="mobileShapeStats" class="shape-grid"></div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>指标回测走势</h2>
+              <span id="mobileIndicatorScope">待计算</span>
+            </div>
+            <div id="mobileIndicatorBacktest" class="backtest-grid muted">暂无指标回测</div>
+            <div class="line-chart-grid">
+              <div class="line-chart-card">
+                <div class="mini-title">和值与回归线</div>
+                <div id="mobileSumLineChart" class="line-chart"></div>
+              </div>
+              <div class="line-chart-card">
+                <div class="mini-title">冷热占比</div>
+                <div id="mobileRatioLineChart" class="line-chart"></div>
+              </div>
+              <div class="line-chart-card">
+                <div class="mini-title">奇偶走势</div>
+                <div id="mobileOddLineChart" class="line-chart"></div>
+              </div>
+            </div>
+            <div id="mobileClassificationList" class="classification-list"></div>
+          </section>
+        </section>
+
+        <section class="mobile-view" id="mobile-records" data-mobile-view="records" hidden>
+          <section class="mobile-card">
+            <div class="mobile-card-head stacked">
+              <div>
+                <h2>我的记录</h2>
+                <p id="mobileRecordHint">登录后同步建议号、收藏号、社区号和自选号</p>
+              </div>
+              <button id="mobileRefreshRecordsBtn" type="button">刷新记录</button>
+            </div>
+            <div id="mobileRecordSummary" class="backtest-grid muted">暂无记录</div>
+            <div id="mobileRecordList" class="record-list muted">暂无历史记录</div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>收藏记录</h2>
+              <span id="mobileFavoriteCount">0 注</span>
+            </div>
+            <select id="mobileFavoriteIssueFilter" aria-label="收藏记录期数筛选">
+              <option value="">全部期数</option>
+            </select>
+            <div id="mobileFavoritesPanel" class="tickets compact-list muted">暂无收藏</div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>自选号记录</h2>
+              <span id="mobileManualRecordCount">0 注</span>
+            </div>
+            <select id="mobileManualIssueFilter" aria-label="自选号记录期数筛选">
+              <option value="">全部期数</option>
+            </select>
+            <div id="mobileManualRecordList" class="record-list muted">暂无自选号记录</div>
+          </section>
+        </section>
+
+        <section class="mobile-view" id="mobile-community" data-mobile-view="community" hidden>
+          <section class="mobile-card">
+            <div class="mobile-card-head stacked">
+              <div>
+                <h2>社区来源</h2>
+                <p>输入或保留默认来源，抓取公开推荐号</p>
+              </div>
+              <button id="mobileCommunityBtn" class="primary" type="button">抓取推荐</button>
+            </div>
+            <textarea id="mobileSourceUrls" spellcheck="false"></textarea>
+            <div id="mobileCommunityResults" class="community-list muted">尚未抓取</div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>社区共振</h2>
+              <span id="mobileCommunitySourceText">待抓取</span>
+            </div>
+            <div id="mobileCommunityAggregate" class="tickets compact-list muted">暂无数据</div>
+          </section>
+
+          <section class="mobile-card">
+            <div class="mobile-card-head">
+              <h2>来源评分</h2>
+              <span id="mobileSourceScoreScope">待抓取</span>
+            </div>
+            <div id="mobileSourceScores" class="score-list muted">暂无数据</div>
+          </section>
+        </section>
+
+        <section class="mobile-view" id="mobile-account" data-mobile-view="account" hidden>
+          <section class="mobile-card account-mobile-card">
+            <div class="mobile-card-head stacked">
+              <div>
+                <h2>账户中心</h2>
+                <p id="mobileAuthHint">登录后自动记录每次选号，并在开奖后核对是否中奖。</p>
+              </div>
+              <span id="mobileAuthModeText" class="top-auth-badge">访客模式</span>
+            </div>
+
+            <div class="account-stats">
+              <div class="account-stat"><span>已记录</span><strong id="mobileAuthStatTotal">0</strong></div>
+              <div class="account-stat"><span>已核对</span><strong id="mobileAuthStatChecked">0</strong></div>
+              <div class="account-stat"><span>中奖</span><strong id="mobileAuthStatWins">0</strong></div>
+              <div class="account-stat"><span>待开奖</span><strong id="mobileAuthStatPending">0</strong></div>
+            </div>
+
+            <div id="mobileAuthGuestPanel" class="auth-card">
+              <label class="field compact">
+                <span>账号</span>
+                <input id="mobileAuthUsernameInput" type="text" autocomplete="username" maxlength="24" placeholder="3-24 位账号" />
+              </label>
+              <label class="field compact">
+                <span>密码</span>
+                <input id="mobileAuthPasswordInput" type="password" autocomplete="current-password" maxlength="72" placeholder="至少 6 位" />
+              </label>
+              <label class="field compact">
+                <span>昵称</span>
+                <input id="mobileAuthDisplayNameInput" type="text" autocomplete="nickname" maxlength="24" placeholder="注册时可填写" />
+              </label>
+              <div class="mobile-action-row">
+                <button id="mobileRegisterBtn" type="button">注册并登录</button>
+                <button id="mobileLoginBtn" class="primary" type="button">登录</button>
+              </div>
+            </div>
+
+            <div id="mobileAuthUserPanel" class="auth-card" hidden>
+              <strong id="mobileAuthUserTitle">--</strong>
+              <p id="mobileAuthUserSummary" class="auth-user-summary">登录后这里会展示选号与中奖统计。</p>
+              <button id="mobileLogoutBtn" type="button">退出登录</button>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <nav class="mobile-bottom-nav" aria-label="手机端导航">
+        <button class="active" data-mobile-tab="home" type="button">首页</button>
+        <button data-mobile-tab="picks" type="button">选号</button>
+        <button data-mobile-tab="analysis" type="button">分析</button>
+        <button data-mobile-tab="records" type="button">记录</button>
+        <button data-mobile-tab="community" type="button">社区</button>
+        <button data-mobile-tab="account" type="button">账户</button>
+      </nav>
+    </div>
+
+    <script type="module" src="/mobile-app.js"></script>
+  </body>
+</html>
