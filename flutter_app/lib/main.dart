@@ -6,4 +6,3 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const SsqMobileApp());
 }
-

@@ -1,7 +1,7 @@
-name: ssq_mobile_app
-description: Embedded Flutter shell for the SSQ mobile experience.
+﻿name: ssq_mobile_app
+description: Native Flutter app for the SSQ mobile experience.
 publish_to: "none"
-version: 0.1.0+1
+version: 0.1.0+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -13,16 +13,17 @@ dependencies:
   http: ^1.2.2
   path: ^1.9.0
   path_provider: ^2.1.4
-  shelf: ^1.4.1
-  shelf_router: ^1.1.4
-  shelf_static: ^1.1.3
   sqflite: ^2.3.3+1
   uuid: ^4.4.2
-  webview_flutter: ^4.8.0
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/web/
     - assets/bootstrap/
+
 

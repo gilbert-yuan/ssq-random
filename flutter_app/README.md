@@ -1,36 +1,20 @@
-# Flutter app shell
+# Flutter native app
 
-This folder contains a Flutter shell that embeds the existing mobile web page,
-runs a local HTTP API inside the app, and stores app data in SQLite.
+This folder contains the native Flutter implementation of the SSQ mobile experience. The app is built with declarative Flutter widgets and Dart state logic; it does not package or render the web UI.
 
-## Current state
-
-The source code for the Flutter layer is checked in, but the host machine that
-prepared it did not have a Flutter SDK installed. Because of that, the
-generated `android/` and `ios/` folders are not included yet.
-
-## Bootstrap once Flutter is installed
-
-1. Install Flutter and make sure `flutter --version` works.
-2. From the repository root run:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap_flutter_app.ps1
-```
-
-3. Then launch the app:
+## Run
 
 ```powershell
 cd .\flutter_app
+flutter pub get
 flutter run
 ```
 
 ## Architecture
 
-- `assets/web/`: a copy of the existing `public/` mobile site assets
-- `lib/src/runtime/asset_deployer.dart`: copies bundled web assets to a local
-  runtime directory that `shelf` can serve
-- `lib/src/runtime/local_database.dart`: SQLite models and persistence
-- `lib/src/runtime/embedded_server.dart`: local API + static hosting
-- `lib/src/runtime/app_runtime.dart`: bootstraps assets, database, and server
+- `lib/src/app_shell.dart`: Material app, screens, native widgets, setState state flow, number generation and analysis UI.
+- `lib/src/runtime/local_database.dart`: SQLite models, local draw cache, records, and account persistence helpers.
+- `lib/src/runtime/app_runtime.dart`: native data bootstrap helper for bundled sample draws.
+- `assets/bootstrap/`: bundled JSON data used to seed the local database.
 
+The Flutter app intentionally avoids WebView, HTML rendering, JavaScript injection, and web bridge plugins.

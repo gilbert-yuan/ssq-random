@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
@@ -13,19 +13,11 @@
   </head>
   <body class="mobile-page">
     <div class="mobile-shell">
-      <header class="mobile-header">
-        <div>
-          <p class="mobile-kicker">SSQ MOBILE LAB</p>
-          <h1>双色球分析台</h1>
-        </div>
-        <a class="desktop-link" href="/" aria-label="打开桌面端">桌面端</a>
-      </header>
-
       <section class="mobile-status" id="mobileStatus" role="status" aria-live="polite">
         <span class="status-dot"></span>
         <div>
           <strong id="mobileStatusText">正在准备数据</strong>
-          <span id="mobileStatusDetail">手机端会保留桌面端的全部核心功能</span>
+          <span id="mobileStatusDetail">正在加载选号、分析、记录与社区数据</span>
         </div>
       </section>
 
@@ -50,20 +42,10 @@
           </section>
 
           <section class="mobile-card">
-            <div class="mobile-card-head">
-              <h2>趋势建议</h2>
-              <span id="mobileConfidenceText">--</span>
-            </div>
-            <ul id="mobileAdviceList" class="advice-list"></ul>
-          </section>
-        </section>
-
-        <section class="mobile-view" id="mobile-picks" data-mobile-view="picks" hidden>
-          <section class="mobile-card">
             <div class="mobile-card-head stacked">
               <div>
                 <h2>一键建议号</h2>
-                <p>保留桌面端的五种选号策略</p>
+                <p>五种选号策略可直接生成建议号</p>
               </div>
               <select id="mobileStrategySelect" aria-label="选号策略">
                 <option value="balanced">均衡趋势</option>
@@ -161,21 +143,12 @@
 
         <section class="mobile-view" id="mobile-records" data-mobile-view="records" hidden>
           <section class="mobile-card">
-            <div class="mobile-card-head stacked">
-              <div>
-                <h2>我的记录</h2>
-                <p id="mobileRecordHint">登录后同步建议号、收藏号、社区号和自选号</p>
-              </div>
-              <button id="mobileRefreshRecordsBtn" type="button">刷新记录</button>
-            </div>
-            <div id="mobileRecordSummary" class="backtest-grid muted">暂无记录</div>
-            <div id="mobileRecordList" class="record-list muted">暂无历史记录</div>
-          </section>
-
-          <section class="mobile-card">
             <div class="mobile-card-head">
               <h2>收藏记录</h2>
-              <span id="mobileFavoriteCount">0 注</span>
+              <div class="record-head-actions">
+                <span id="mobileFavoriteCount">0 注</span>
+                <button id="mobileCopyFavoritesBtn" class="small-button" type="button">复制本期</button>
+              </div>
             </div>
             <select id="mobileFavoriteIssueFilter" aria-label="收藏记录期数筛选">
               <option value="">全部期数</option>
@@ -186,7 +159,10 @@
           <section class="mobile-card">
             <div class="mobile-card-head">
               <h2>自选号记录</h2>
-              <span id="mobileManualRecordCount">0 注</span>
+              <div class="record-head-actions">
+                <span id="mobileManualRecordCount">0 注</span>
+                <button id="mobileCopyManualsBtn" class="small-button" type="button">复制本期</button>
+              </div>
             </div>
             <select id="mobileManualIssueFilter" aria-label="自选号记录期数筛选">
               <option value="">全部期数</option>
@@ -242,6 +218,14 @@
               <div class="account-stat"><span>待开奖</span><strong id="mobileAuthStatPending">0</strong></div>
             </div>
 
+            <section class="account-advice-panel">
+              <div class="mobile-card-head">
+                <h2>趋势建议</h2>
+                <span id="mobileConfidenceText">--</span>
+              </div>
+              <ul id="mobileAdviceList" class="advice-list"></ul>
+            </section>
+
             <div id="mobileAuthGuestPanel" class="auth-card">
               <label class="field compact">
                 <span>账号</span>
@@ -272,7 +256,6 @@
 
       <nav class="mobile-bottom-nav" aria-label="手机端导航">
         <button class="active" data-mobile-tab="home" type="button">首页</button>
-        <button data-mobile-tab="picks" type="button">选号</button>
         <button data-mobile-tab="analysis" type="button">分析</button>
         <button data-mobile-tab="records" type="button">记录</button>
         <button data-mobile-tab="community" type="button">社区</button>
@@ -280,6 +263,8 @@
       </nav>
     </div>
 
-    <script type="module" src="/mobile-app.js"></script>
+    <script defer src="/mobile-bundle.js"></script>
   </body>
 </html>
+
+

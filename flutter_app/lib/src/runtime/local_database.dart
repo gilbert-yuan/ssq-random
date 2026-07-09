@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
@@ -165,7 +165,7 @@ class LocalDatabase {
     final dbPath = p.join(supportDir.path, 'ssq_mobile_app.sqlite');
     final db = await openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: (database, version) async {
         await database.execute('''
           CREATE TABLE draws (
@@ -236,6 +236,22 @@ class LocalDatabase {
             updated_at TEXT NOT NULL
           )
         ''');
+        await database.execute('''
+          CREATE TABLE app_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          )
+        ''');
+      },
+          onUpgrade: (database, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await database.execute('''
+            CREATE TABLE IF NOT EXISTS app_meta (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL
+            )
+          ''');
+        }
       },
     );
 
@@ -245,6 +261,29 @@ class LocalDatabase {
   }
 
   Future<void> close() => _db.close();
+
+  Future<String> readLocalSessionToken() async {
+    final rows = await _db.query(
+      'app_meta',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [sessionCookieName],
+      limit: 1,
+    );
+    return rows.isEmpty ? '' : rows.first['value'] as String;
+  }
+
+  Future<void> saveLocalSessionToken(String token) async {
+    await _db.insert(
+      'app_meta',
+      {'key': sessionCookieName, 'value': token},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> clearLocalSessionToken() async {
+    await _db.delete('app_meta', where: 'key = ?', whereArgs: [sessionCookieName]);
+  }
 
   Future<void> _seedSampleDraws(List<Map<String, dynamic>> sampleDraws) async {
     final count = Sqflite.firstIntValue(
@@ -296,9 +335,8 @@ class LocalDatabase {
     final username = _requireUsername(payload['username']);
     final password = _requirePassword(payload['password']);
     final usernameNorm = username.toLowerCase();
-    final displayName = String(payload['displayName'] ?? '').trim().isEmpty
-        ? username
-        : String(payload['displayName']).trim();
+    final rawDisplayName = _stringifyValue(payload['displayName']).trim();
+    final displayName = rawDisplayName.isEmpty ? username : rawDisplayName;
     final now = DateTime.now().toUtc().toIso8601String();
     final userId = _uuid.v4();
 
@@ -439,7 +477,8 @@ class LocalDatabase {
       'records',
       where: 'user_id = ?',
       whereArgs: [userId],
-      orderBy: "CASE WHEN pinned_at = '' THEN 1 ELSE 0 END, pinned_at DESC, created_at DESC",
+      orderBy:
+          "CASE WHEN pinned_at = '' THEN 1 ELSE 0 END, pinned_at DESC, created_at DESC",
       limit: limit,
     );
     return rows.map(_recordFromRow).toList(growable: false);
@@ -497,13 +536,36 @@ class LocalDatabase {
     );
   }
 
+  Future<int> deleteRecordMatching(
+    String userId, {
+    required String type,
+    required String ticketKey,
+    required String baseIssue,
+  }) {
+    return _db.delete(
+      'records',
+      where: 'user_id = ? AND type = ? AND ticket_key = ? AND base_issue = ?',
+      whereArgs: [userId, type, ticketKey, baseIssue],
+    );
+  }
+
+  Future<int> clearRecords(String userId, {String? type}) {
+    if (type == null) {
+      return _db.delete('records', where: 'user_id = ?', whereArgs: [userId]);
+    }
+    return _db.delete(
+      'records',
+      where: 'user_id = ? AND type = ?',
+      whereArgs: [userId, type],
+    );
+  }
+
   Future<Map<String, dynamic>> setRecordPinned(
     String id,
     bool pinned,
     String userId,
   ) async {
-    final pinnedAt =
-        pinned ? DateTime.now().toUtc().toIso8601String() : '';
+    final pinnedAt = pinned ? DateTime.now().toUtc().toIso8601String() : '';
     final changed = await _db.update(
       'records',
       {'pinned_at': pinnedAt},
@@ -552,15 +614,19 @@ class LocalDatabase {
       raw['blue'] ?? raw['blueballs'] ?? raw['blueBalls'],
       16,
     );
-    final issue = String(raw['code'] ?? raw['issue'] ?? raw['expect'] ?? '');
-    final date = String(raw['date'] ?? raw['openTime'] ?? raw['time'] ?? '');
+    final issue = _stringifyValue(
+      raw['code'] ?? raw['issue'] ?? raw['expect'] ?? '',
+    );
+    final date = _stringifyValue(
+      raw['date'] ?? raw['openTime'] ?? raw['time'] ?? '',
+    );
     if (issue.isEmpty || reds.length != 6 || blues.isEmpty) return null;
     return StoredDraw(
       issue: issue,
       date: date,
       red: reds,
       blue: blues.first,
-      source: String(raw['source'] ?? 'local'),
+      source: _stringifyValue(raw['source'] ?? 'local'),
     );
   }
 
@@ -577,31 +643,30 @@ class LocalDatabase {
 
     final type = <String>{'ticket', 'favorite', 'community', 'manual'}
             .contains(raw['type'])
-        ? String(raw['type'])
+        ? _stringifyValue(raw['type'])
         : 'ticket';
-    final createdAt = String(raw['createdAt'] ?? '')
-            .trim()
-            .isNotEmpty
-        ? String(raw['createdAt']).trim()
+    final rawCreatedAt = _stringifyValue(raw['createdAt']).trim();
+    final createdAt = rawCreatedAt.isNotEmpty
+        ? rawCreatedAt
         : DateTime.now().toUtc().toIso8601String();
 
-    final pinnedAt = String(raw['pinnedAt'] ?? '').trim();
+    final pinnedAt = _stringifyValue(raw['pinnedAt']).trim();
+    final reason = _stringifyValue(
+      raw['reason'] ?? raw['context'] ?? '',
+    ).trim();
     return StoredRecord(
-      id: String(raw['id'] ?? _uuid.v4()),
+      id: _stringifyValue(raw['id'] ?? _uuid.v4()),
       userId: userId,
       type: type,
       key: '${reds.join(',')}+${blues.first}',
       reds: reds,
       blue: blues.first,
-      strategy: String(raw['strategy'] ?? raw['kind'] ?? ''),
-      sourceName: String(raw['sourceName'] ?? ''),
-      sourceUrl: String(raw['sourceUrl'] ?? ''),
-      baseIssue: String(raw['baseIssue'] ?? ''),
-      baseDate: String(raw['baseDate'] ?? ''),
-      reason: String(raw['reason'] ?? raw['context'] ?? '').trim().substring(
-            0,
-            min(240, String(raw['reason'] ?? raw['context'] ?? '').trim().length),
-          ),
+      strategy: _stringifyValue(raw['strategy'] ?? raw['kind'] ?? ''),
+      sourceName: _stringifyValue(raw['sourceName']),
+      sourceUrl: _stringifyValue(raw['sourceUrl']),
+      baseIssue: _stringifyValue(raw['baseIssue']),
+      baseDate: _stringifyValue(raw['baseDate']),
+      reason: reason.substring(0, min<int>(240, reason.length)),
       score: raw['score'] == null ? null : double.tryParse('${raw['score']}'),
       createdAt: createdAt,
       pinnedAt: pinnedAt,
@@ -664,7 +729,7 @@ class LocalDatabase {
   }
 
   String _requireUsername(Object? raw) {
-    final username = String(raw ?? '').trim();
+    final username = _stringifyValue(raw).trim();
     final re = RegExp(r'^[A-Za-z0-9_-]{3,24}$');
     if (!re.hasMatch(username)) {
       throw AppException(
@@ -676,7 +741,7 @@ class LocalDatabase {
   }
 
   String _requirePassword(Object? raw) {
-    final password = String(raw ?? '');
+    final password = _stringifyValue(raw);
     if (password.length < 6 || password.length > 72) {
       throw AppException(400, 'password must be 6-72 chars');
     }
@@ -725,13 +790,14 @@ class LocalDatabase {
 
   String _stringifyValue(Object? value) {
     if (value is List) return value.join(' ');
-    return String(value ?? '');
+    return (value ?? '').toString();
   }
 
   String _normalizeDigits(String text) {
     return text.replaceAllMapped(
       RegExp(r'[\uFF10-\uFF19]'),
-      (match) => String.fromCharCode(match.group(0)!.codeUnitAt(0) - 0xFF10 + 48),
+      (match) =>
+          String.fromCharCode(match.group(0)!.codeUnitAt(0) - 0xFF10 + 48),
     );
   }
 }
@@ -745,3 +811,5 @@ class AppException implements Exception {
   @override
   String toString() => message;
 }
+
+
