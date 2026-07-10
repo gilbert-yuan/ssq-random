@@ -1,7 +1,7 @@
-﻿name: ssq_mobile_app
+name: ssq_mobile_app
 description: Native Flutter app for the SSQ mobile experience.
 publish_to: "none"
-version: 0.1.0+3
+version: 0.1.0+4
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -25,5 +25,3 @@ flutter:
   uses-material-design: true
   assets:
     - assets/bootstrap/
-
-

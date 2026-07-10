@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -63,7 +63,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   String _manualBlue = '';
   String _strategy = 'balanced';
   String _manualStrategy = 'balanced';
-  String _selectedFavoriteIssue = '全部';
+  String _selectedFavoriteIssue = '';
   int _tabIndex = 0;
   bool _loading = true;
   bool _authLoading = false;
@@ -219,7 +219,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
       _user = null;
       _sessionToken = '';
       _favorites.clear();
-      _selectedFavoriteIssue = '全部';
+      _selectedFavoriteIssue = '';
       _status = null;
       _authError = null;
     });
@@ -314,7 +314,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     final seen = <String>{};
     final random = Random(DateTime.now().millisecondsSinceEpoch);
     var guard = 0;
-    while (tickets.length < count && guard < count * 80) {
+    while (tickets.length < count && guard < count * 90) {
       final reds = _pickReds(strategy, analysis, random);
       final blue = _pickBlue(strategy, analysis, random);
       final ticket = Ticket(
@@ -322,7 +322,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         blue: blue,
         strategy: strategy,
         score: _scoreTicket(reds, blue, analysis),
-        reason: _strategyReason(strategy, reds, blue),
+        reason: _strategyReason(strategy, reds, blue, analysis),
         sourceName: '本地趋势',
         baseIssue: _latest?.issue ?? '',
         baseDate: _latest?.date ?? '',
@@ -334,47 +334,255 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   }
 
   List<String> _pickReds(String strategy, AnalysisSnapshot analysis, Random random) {
-    final preferred = switch (strategy) {
-      'hot' => analysis.hotReds,
-      'cold' => analysis.coldReds,
-      'blue' => analysis.balancedReds,
-      _ => analysis.balancedReds,
+    var best = <String>[];
+    var bestScore = -9999;
+    for (var attempt = 0; attempt < 72; attempt += 1) {
+      final selected = <String>{};
+      for (final anchor in _redAnchorsForAttempt(strategy, analysis, random)) {
+        selected.add(anchor);
+      }
+      final pool = <String>[
+        ..._preferredRedPool(strategy, analysis),
+        ...analysis.allReds,
+      ]..shuffle(random);
+      for (final red in pool) {
+        if (selected.length >= 6) break;
+        if (selected.contains(red)) continue;
+        if (_wouldOverloadZone(selected, red) && random.nextDouble() < 0.72) continue;
+        if (_wouldOverloadHot(strategy, selected, red, analysis) && random.nextDouble() < 0.84) continue;
+        selected.add(red);
+      }
+      for (final red in analysis.allReds) {
+        if (selected.length >= 6) break;
+        selected.add(red);
+      }
+      final reds = selected.toList()..sort();
+      final score = _redQualityScore(reds, analysis, strategy);
+      if (score > bestScore) {
+        bestScore = score;
+        best = reds;
+      }
+    }
+    if (best.length == 6) return best;
+    return analysis.allReds.take(6).toList();
+  }
+
+  List<String> _redAnchorsForAttempt(String strategy, AnalysisSnapshot analysis, Random random) {
+    final anchors = <String>[];
+    String? choose(List<String> values, int limit) {
+      if (values.isEmpty) return null;
+      return values[random.nextInt(min(limit, values.length))];
+    }
+
+    switch (strategy) {
+      case 'leaderBackfill':
+        final leader = choose(analysis.leaderBackfillReds, 5);
+        if (leader != null) anchors.add(leader);
+        break;
+      case 'tailPrime':
+        final tail = choose(analysis.primeTailReds, 4);
+        if (tail != null) anchors.add(tail);
+        break;
+      case 'oddBlueTurn':
+        if (random.nextDouble() < 0.46) {
+          final leader = choose(analysis.leaderBackfillReds, 4);
+          if (leader != null) anchors.add(leader);
+        }
+        if (random.nextDouble() < 0.42) {
+          final tail = choose(analysis.primeTailReds, 4);
+          if (tail != null) anchors.add(tail);
+        }
+        break;
+      default:
+        if (random.nextDouble() < 0.32) {
+          final leader = choose(analysis.leaderBackfillReds, 4);
+          if (leader != null) anchors.add(leader);
+        }
+        if (random.nextDouble() < 0.30) {
+          final tail = choose(analysis.primeTailReds, 4);
+          if (tail != null) anchors.add(tail);
+        }
+    }
+    return anchors;
+  }
+
+  List<String> _preferredRedPool(String strategy, AnalysisSnapshot analysis) {
+    return switch (strategy) {
+      'hot' => [
+          ...analysis.hotReds.take(12),
+          ...analysis.hotReds.take(8),
+          ...analysis.balancedReds.take(16),
+          ...analysis.coldReds.take(7),
+          ...analysis.leaderBackfillReds.take(3),
+          ...analysis.primeTailReds.take(2),
+        ],
+      'cold' => [
+          ...analysis.coldReds.take(12),
+          ...analysis.coldReds.take(8),
+          ...analysis.hotReds.take(6),
+          ...analysis.balancedReds.take(14),
+          ...analysis.leaderBackfillReds.take(4),
+          ...analysis.primeTailReds.take(3),
+        ],
+      'leaderBackfill' => [
+          ...analysis.leaderBackfillReds.take(8),
+          ...analysis.leaderBackfillReds.take(5),
+          ...analysis.hotReds.take(8),
+          ...analysis.coldReds.take(8),
+          ...analysis.balancedReds.take(18),
+          ...analysis.primeTailReds.take(3),
+        ],
+      'tailPrime' => [
+          ...analysis.primeTailReds.take(5),
+          ...analysis.primeTailReds.take(5),
+          ...analysis.hotReds.take(8),
+          ...analysis.coldReds.take(7),
+          ...analysis.balancedReds.take(18),
+          ...analysis.leaderBackfillReds.take(3),
+        ],
+      'oddBlueTurn' => [
+          ...analysis.balancedReds.take(18),
+          ...analysis.hotReds.take(8),
+          ...analysis.coldReds.take(8),
+          ...analysis.leaderBackfillReds.take(4),
+          ...analysis.primeTailReds.take(4),
+        ],
+      'blue' => [
+          ...analysis.balancedReds.take(18),
+          ...analysis.hotReds.take(9),
+          ...analysis.coldReds.take(6),
+          ...analysis.primeTailReds.take(2),
+        ],
+      _ => [
+          ...analysis.balancedReds.take(20),
+          ...analysis.hotReds.take(8),
+          ...analysis.coldReds.take(8),
+          ...analysis.leaderBackfillReds.take(4),
+          ...analysis.primeTailReds.take(4),
+        ],
     };
-    final pool = <String>[...preferred, ...analysis.allReds];
-    final selected = <String>{};
-    var cursor = random.nextInt(max(1, min(pool.length, 8)));
-    while (selected.length < 6 && selected.length < pool.length) {
-      selected.add(pool[cursor % pool.length]);
-      cursor += 1 + random.nextInt(4);
+  }
+
+  bool _wouldOverloadZone(Set<String> selected, String red) {
+    final zone = _redZone(red);
+    final current = selected.where((item) => _redZone(item) == zone).length;
+    return current >= 2 && selected.length < 5;
+  }
+
+  bool _wouldOverloadHot(String strategy, Set<String> selected, String red, AnalysisSnapshot analysis) {
+    final hotSet = analysis.hotReds.take(10).toSet();
+    if (!hotSet.contains(red)) return false;
+    final limit = strategy == 'hot' ? 3 : 2;
+    final current = selected.where(hotSet.contains).length;
+    return current >= limit;
+  }
+
+  int _redZone(String red) {
+    final value = int.parse(red);
+    if (value <= 11) return 0;
+    if (value <= 22) return 1;
+    return 2;
+  }
+
+  int _redQualityScore(List<String> reds, AnalysisSnapshot analysis, String strategy) {
+    if (reds.length != 6) return -999;
+    final numbers = reds.map(int.parse).toList()..sort();
+    final sum = numbers.fold<int>(0, (total, item) => total + item);
+    final oddCount = numbers.where((item) => item.isOdd).length;
+    final zoneCounts = [0, 0, 0];
+    for (final red in reds) {
+      zoneCounts[_redZone(red)] += 1;
     }
-    for (var i = 1; selected.length < 6 && i <= 33; i += 1) {
-      selected.add(ballLabel(i));
+    var consecutivePairs = 0;
+    for (var index = 1; index < numbers.length; index += 1) {
+      if (numbers[index] - numbers[index - 1] == 1) consecutivePairs += 1;
     }
-    return selected.toList()..sort();
+
+    final hotHits = reds.where(analysis.hotReds.take(12).contains).length;
+    final coldHits = reds.where(analysis.coldReds.take(12).contains).length;
+    final leaderHit = analysis.leaderBackfillReds.take(5).contains(ballLabel(numbers.first));
+    final tailHit = analysis.primeTailReds.take(5).contains(ballLabel(numbers.last));
+    var score = 0;
+    score += sum >= 70 && sum <= 128 ? 18 : 4;
+    if (sum >= 78 && sum <= 118) score += 8;
+    score += oddCount >= 2 && oddCount <= 4 ? 16 : 3;
+    score += zoneCounts.every((count) => count > 0) ? 18 : 2;
+    score += zoneCounts.every((count) => count <= 3) ? 8 : 0;
+    score += consecutivePairs <= 1 ? 8 : max(0, 5 - consecutivePairs * 2);
+    score += min(hotHits, 2) * 4;
+    score += hotHits <= 2 ? 8 : hotHits == 3 ? 1 : -16;
+    score += min(coldHits, 2) * 3;
+    if (leaderHit) score += strategy == 'leaderBackfill' ? 16 : 6;
+    if (tailHit) score += strategy == 'tailPrime' ? 16 : 6;
+    if (strategy == 'hot' && hotHits >= 2 && hotHits <= 3) score += 8;
+    if (strategy == 'hot' && hotHits >= 4) score -= 12;
+    if (strategy == 'cold' && coldHits >= 2 && coldHits <= 4) score += 8;
+    if (strategy == 'leaderBackfill' && !leaderHit) score -= 10;
+    if (strategy == 'tailPrime' && !tailHit) score -= 10;
+    return score;
   }
 
   String _pickBlue(String strategy, AnalysisSnapshot analysis, Random random) {
-    final ranked = strategy == 'cold' ? analysis.coldBlues : analysis.hotBlues;
-    if (ranked.isEmpty) return ballLabel(random.nextInt(16) + 1);
-    final limit = strategy == 'blue' ? min(5, ranked.length) : min(8, ranked.length);
-    return ranked[random.nextInt(limit)];
+    final pool = switch (strategy) {
+      'oddBlueTurn' => analysis.oddTurnBlues.isEmpty
+          ? analysis.hotBlues.where((item) => int.parse(item).isOdd).toList()
+          : analysis.oddTurnBlues,
+      'cold' => analysis.coldBlues.take(8).toList(),
+      'blue' => [
+          ...analysis.hotBlues.take(5),
+          ...analysis.oddTurnBlues.take(3),
+          ...analysis.coldBlues.take(3),
+        ],
+      _ => [
+          ...analysis.hotBlues.take(5),
+          ...analysis.coldBlues.take(4),
+          ...analysis.oddTurnBlues.take(2),
+        ],
+    };
+    final fallback = List.generate(16, (index) => ballLabel(index + 1));
+    final ranked = pool.isEmpty ? fallback : pool;
+    final limit = switch (strategy) {
+      'blue' => min(6, ranked.length),
+      'oddBlueTurn' => min(analysis.blueOddTurnActive ? 7 : 5, ranked.length),
+      _ => min(8, ranked.length),
+    };
+    return ranked[random.nextInt(max(1, limit))];
   }
 
   int _scoreTicket(List<String> reds, String blue, AnalysisSnapshot analysis) {
-    final hotSet = analysis.hotReds.take(12).toSet();
-    final coldSet = analysis.coldReds.take(10).toSet();
-    final hotHits = reds.where(hotSet.contains).length;
-    final coldHits = reds.where(coldSet.contains).length;
-    final blueHit = analysis.hotBlues.take(4).contains(blue) ? 1 : 0;
-    final sum = reds.map(int.parse).fold<int>(0, (total, item) => total + item);
-    final sumBonus = sum >= 75 && sum <= 125 ? 10 : 2;
-    return min(99, 58 + hotHits * 5 + coldHits * 3 + blueHit * 6 + sumBonus);
+    final redScore = _redQualityScore(reds, analysis, 'balanced');
+    final blueHot = analysis.hotBlues.take(4).contains(blue) ? 8 : 0;
+    final blueOddTurn = analysis.oddTurnBlues.take(6).contains(blue) ? 7 : 0;
+    return min(99, max(45, 50 + (redScore / 2).round() + blueHot + blueOddTurn));
   }
 
-  String _strategyReason(String strategy, List<String> reds, String blue) {
+  String _strategyReason(String strategy, List<String> reds, String blue, AnalysisSnapshot analysis) {
     final label = strategyLabels[strategy] ?? '均衡趋势';
-    final sum = reds.map(int.parse).fold<int>(0, (total, item) => total + item);
-    return '$label · 和值 $sum · 蓝球 $blue';
+    final values = reds.map(int.parse).toList()..sort();
+    final sum = values.fold<int>(0, (total, item) => total + item);
+    final oddCount = values.where((item) => item.isOdd).length;
+    final zoneCounts = [0, 0, 0];
+    for (final red in reds) {
+      zoneCounts[_redZone(red)] += 1;
+    }
+    final highlights = <String>[
+      label,
+      '和值 $sum',
+      '奇偶 $oddCount:${6 - oddCount}',
+      '三区 ${zoneCounts.join('-')}',
+    ];
+    if (analysis.leaderBackfillReds.take(5).contains(ballLabel(values.first))) {
+      highlights.add('龙头 ${ballLabel(values.first)}');
+    }
+    if (analysis.primeTailReds.take(5).contains(ballLabel(values.last))) {
+      highlights.add('凤尾 ${ballLabel(values.last)}');
+    }
+    if (analysis.oddTurnBlues.contains(blue) && int.parse(blue).isOdd) {
+      highlights.add('奇蓝 $blue');
+    } else {
+      highlights.add('蓝球 $blue');
+    }
+    return highlights.join(' · ');
   }
 
   void _regenerate() {
@@ -385,7 +593,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   }
 
   void _generateCombo() {
-    const modes = ['hot', 'blue', 'blue', 'cold', 'balanced', 'hot'];
+    const modes = ['leaderBackfill', 'tailPrime', 'oddBlueTurn', 'blue', 'balanced', 'hot'];
     final combo = <Ticket>[];
     final seen = <String>{};
     for (final mode in modes) {
@@ -454,11 +662,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     final analysis = _analysis;
     final random = Random(DateTime.now().millisecondsSinceEpoch);
     final reds = <String>{..._manualReds};
-    final preferred = switch (_manualStrategy) {
-      'hot' => analysis.hotReds,
-      'cold' => analysis.coldReds,
-      _ => analysis.balancedReds,
-    };
+    final preferred = _preferredRedPool(_manualStrategy, analysis).toList()..shuffle(random);
     for (final red in preferred) {
       if (reds.length >= 6) break;
       reds.add(red);
@@ -545,7 +749,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     if (!mounted) return;
     setState(() {
       _favorites.clear();
-      _selectedFavoriteIssue = '全部';
+      _selectedFavoriteIssue = '';
       _status = '已清空收藏记录';
     });
   }
@@ -644,6 +848,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
                     favorites: _favorites,
                     draws: _draws,
                     selectedIssue: _selectedFavoriteIssue,
+                    currentIssue: _latest?.issue ?? '',
                     onIssueChanged: (value) => setState(() => _selectedFavoriteIssue = value),
                     onCopy: _copyTicket,
                     onCopyAll: _copyTickets,

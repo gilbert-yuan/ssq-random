@@ -10,6 +10,7 @@ class RecordsPage extends StatelessWidget {
     required this.favorites,
     required this.draws,
     required this.selectedIssue,
+    required this.currentIssue,
     required this.onIssueChanged,
     required this.onCopy,
     required this.onCopyAll,
@@ -20,6 +21,7 @@ class RecordsPage extends StatelessWidget {
   final List<Ticket> favorites;
   final List<StoredDraw> draws;
   final String selectedIssue;
+  final String currentIssue;
   final ValueChanged<String> onIssueChanged;
   final ValueChanged<Ticket> onCopy;
   final void Function(List<Ticket> tickets, String label) onCopyAll;
@@ -28,13 +30,14 @@ class RecordsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final issues = favorites
+    final issueSet = favorites
         .map((ticket) => ticket.baseIssue.isEmpty ? '未分期' : ticket.baseIssue)
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
-    final options = ['全部', ...issues];
-    final activeIssue = options.contains(selectedIssue) ? selectedIssue : '全部';
+        .toSet();
+    if (currentIssue.isNotEmpty) issueSet.add(currentIssue);
+    final issues = issueSet.toList()..sort((a, b) => b.compareTo(a));
+    final options = [...issues, '全部'];
+    final defaultIssue = currentIssue.isNotEmpty ? currentIssue : (issues.isNotEmpty ? issues.first : '全部');
+    final activeIssue = selectedIssue.isNotEmpty && options.contains(selectedIssue) ? selectedIssue : defaultIssue;
     final visible = activeIssue == '全部'
         ? favorites
         : favorites.where((ticket) {
@@ -43,13 +46,14 @@ class RecordsPage extends StatelessWidget {
           }).toList(growable: false);
     final summary = FavoriteStats.fromTickets(favorites, draws);
     final visibleSummary = FavoriteStats.fromTickets(visible, draws);
+    final activeLabel = activeIssue == currentIssue && currentIssue.isNotEmpty ? '当前期' : '第 $activeIssue 期';
 
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
         SectionCard(
           title: '收藏统计',
-          trailing: Text(activeIssue == '全部' ? '全部期号' : '第 $activeIssue 期'),
+          trailing: Text(activeIssue == '全部' ? '全部期号' : activeLabel),
           child: MetricGrid(
             metrics: [
               MetricItem('总收藏', '${summary.total}', '当前显示 ${visibleSummary.total} 注'),
@@ -82,7 +86,7 @@ class RecordsPage extends StatelessWidget {
                         items: options
                             .map((issue) => DropdownMenuItem(
                                   value: issue,
-                                  child: Text(issue == '全部' ? '全部期号' : '基于第 $issue 期'),
+                                  child: Text(_issueLabel(issue)),
                                 ))
                             .toList(),
                         onChanged: (value) {
@@ -120,9 +124,9 @@ class RecordsPage extends StatelessWidget {
                   child: Center(child: Text('暂无收藏号码')),
                 )
               else if (visible.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text('当前期号暂无收藏')),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text(activeIssue == '全部' ? '暂无收藏号码' : '当前期暂无收藏')),
                 )
               else
                 ...visible.map((ticket) {
@@ -142,5 +146,11 @@ class RecordsPage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _issueLabel(String issue) {
+    if (issue == '全部') return '全部期号';
+    if (issue == currentIssue && currentIssue.isNotEmpty) return '当前期 $issue';
+    return '基于第 $issue 期';
   }
 }

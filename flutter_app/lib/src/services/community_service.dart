@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -24,41 +24,29 @@ class CommunityService {
 
   Future<CommunityFetchResult> fetchResonance() async {
     final sources = await loadSources();
+    final fetched = await Future.wait(sources.map(_fetchSource));
     final byKey = <String, _CommunityAccumulator>{};
     final failed = <String>[];
 
-    for (final source in sources) {
-      try {
-        final response = await _client
-            .get(
-              Uri.parse(source.url),
-              headers: const {
-                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'user-agent': 'Flutter SSQ Native App',
-              },
-            )
-            .timeout(const Duration(seconds: 10));
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw Exception('HTTP ${response.statusCode}');
-        }
-        final body = utf8.decode(response.bodyBytes, allowMalformed: true);
-        final tickets = _extractTickets(body).take(80).toList(growable: false);
-        if (tickets.isEmpty) {
-          failed.add('${source.name}：未识别到号码');
-          continue;
-        }
-        final seenInSource = <String>{};
-        for (final ticket in tickets) {
-          final key = ticket.$1.join(',') + '+${ticket.$2}';
-          final item = byKey.putIfAbsent(
-            key,
-            () => _CommunityAccumulator(ticket.$1, ticket.$2, source.url),
-          );
-          item.mentions += 1;
-          if (seenInSource.add(key)) item.sourceNames.add(source.name);
-        }
-      } catch (error) {
-        failed.add('${source.name}：$error');
+    for (final result in fetched) {
+      final source = result.source;
+      if (result.error != null) {
+        failed.add('${source.name}：${result.error}');
+        continue;
+      }
+      if (result.tickets.isEmpty) {
+        failed.add('${source.name}：未识别到号码');
+        continue;
+      }
+      final seenInSource = <String>{};
+      for (final ticket in result.tickets) {
+        final key = ticket.$1.join(',') + '+${ticket.$2}';
+        final item = byKey.putIfAbsent(
+          key,
+          () => _CommunityAccumulator(ticket.$1, ticket.$2, source.url),
+        );
+        item.mentions += 1;
+        if (seenInSource.add(key)) item.sourceNames.add(source.name);
       }
     }
 
@@ -88,6 +76,31 @@ class CommunityService {
       failedSources: failed,
       updatedAt: DateTime.now(),
     );
+  }
+
+  Future<_SourceFetch> _fetchSource(CommunitySource source) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(source.url),
+            headers: {
+              'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'accept-language': 'zh-CN,zh;q=0.9',
+              'cache-control': 'no-cache',
+              'user-agent': 'Mozilla/5.0 Flutter SSQ Native App',
+              'referer': Uri.parse(source.url).origin,
+            },
+          )
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+      final tickets = _extractTickets(body).take(100).toList(growable: false);
+      return _SourceFetch(source: source, tickets: tickets);
+    } catch (error) {
+      return _SourceFetch(source: source, tickets: const [], error: '$error');
+    }
   }
 
   Iterable<(List<String>, String)> _extractTickets(String body) sync* {
@@ -133,4 +146,12 @@ class _CommunityAccumulator {
   final String sourceUrl;
   final Set<String> sourceNames = {};
   int mentions = 0;
+}
+
+class _SourceFetch {
+  const _SourceFetch({required this.source, required this.tickets, this.error});
+
+  final CommunitySource source;
+  final List<(List<String>, String)> tickets;
+  final String? error;
 }

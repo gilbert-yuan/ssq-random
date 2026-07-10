@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import '../runtime/local_database.dart';
 
@@ -7,6 +7,9 @@ const strategyLabels = {
   'hot': '热号追踪',
   'cold': '冷号补位',
   'blue': '蓝球重点',
+  'leaderBackfill': '龙头回补',
+  'tailPrime': '凤尾质数',
+  'oddBlueTurn': '蓝球奇数转势',
 };
 
 const prizeAmounts = {
@@ -160,6 +163,10 @@ class AnalysisSnapshot {
     required this.hotBlues,
     required this.coldBlues,
     required this.balancedReds,
+    required this.leaderBackfillReds,
+    required this.primeTailReds,
+    required this.oddTurnBlues,
+    required this.blueOddTurnActive,
     required this.metrics,
   });
 
@@ -171,6 +178,10 @@ class AnalysisSnapshot {
   final List<String> hotBlues;
   final List<String> coldBlues;
   final List<String> balancedReds;
+  final List<String> leaderBackfillReds;
+  final List<String> primeTailReds;
+  final List<String> oddTurnBlues;
+  final bool blueOddTurnActive;
   final List<MetricItem> metrics;
 
   List<String> get allReds => List.generate(33, (index) => ballLabel(index + 1));
@@ -180,13 +191,22 @@ class AnalysisSnapshot {
     final redCounts = {for (var i = 1; i <= 33; i += 1) ballLabel(i): 0};
     final blueCounts = {for (var i = 1; i <= 16; i += 1) ballLabel(i): 0};
     final sums = <int>[];
+    final leaders = <int>[];
+    final tails = <int>[];
+    final blueParities = <bool>[];
 
     for (final draw in recent) {
+      final redNumbers = draw.red.map(int.parse).toList()..sort();
       for (final red in draw.red) {
         redCounts[red] = (redCounts[red] ?? 0) + 1;
       }
       blueCounts[draw.blue] = (blueCounts[draw.blue] ?? 0) + 1;
-      sums.add(draw.red.map(int.parse).fold<int>(0, (total, item) => total + item));
+      sums.add(redNumbers.fold<int>(0, (total, item) => total + item));
+      if (redNumbers.isNotEmpty) {
+        leaders.add(redNumbers.first);
+        tails.add(redNumbers.last);
+      }
+      blueParities.add(int.parse(draw.blue).isOdd);
     }
 
     final redRows = redCounts.entries.map((entry) => FrequencyRow(entry.key, entry.value)).toList()
@@ -206,6 +226,27 @@ class AnalysisSnapshot {
       ...coldReds.take(5),
       ...hotReds,
     ];
+    final leaderBackfill = _rankBackfill(
+      numbers: List.generate(11, (index) => index + 1),
+      recentValues: leaders.take(14).toList(),
+      globalCounts: redCounts,
+    );
+    const tailPrimes = [17, 19, 23, 29, 31];
+    final primeTail = _rankBackfill(
+      numbers: tailPrimes,
+      recentValues: tails.take(14).toList(),
+      globalCounts: redCounts,
+    );
+    final recentBlueOddCount = blueParities.take(10).where((item) => item).length;
+    final evenStreak = blueParities.take(3).length == 3 && blueParities.take(3).every((item) => !item);
+    final oddTurnActive = evenStreak || recentBlueOddCount <= 4;
+    final oddHotBlues = blueRows.map((item) => item.number).where((item) => int.parse(item).isOdd).toList();
+    final oddColdBlues = blueRows.reversed.map((item) => item.number).where((item) => int.parse(item).isOdd).toList();
+    final oddTurnBlues = <String>[
+      if (oddTurnActive) ...oddColdBlues.take(4),
+      ...oddHotBlues.take(5),
+      ...oddColdBlues.take(5),
+    ].toSet().toList();
 
     return AnalysisSnapshot(
       count: draws.length,
@@ -216,16 +257,48 @@ class AnalysisSnapshot {
       hotBlues: blueRows.map((item) => item.number).toList(),
       coldBlues: blueRows.reversed.map((item) => item.number).toList(),
       balancedReds: balanced.toSet().toList(),
+      leaderBackfillReds: leaderBackfill,
+      primeTailReds: primeTail,
+      oddTurnBlues: oddTurnBlues,
+      blueOddTurnActive: oddTurnActive,
       metrics: [
         MetricItem('样本期数', '${draws.length}', '本地 SQLite'),
         MetricItem('近期开奖', recent.isEmpty ? '--' : recent.first.issue, recent.isEmpty ? '--' : recent.first.date),
         MetricItem('平均和值', averageSum.toStringAsFixed(1), '近 ${recent.length} 期'),
         MetricItem('奇偶倾向', oddCount >= recent.length * 3 ? '偏奇' : '均衡', '近 ${recent.length} 期'),
+        MetricItem('龙头回补', leaderBackfill.take(3).join(' '), '低位遗漏优先'),
+        MetricItem('凤尾质数', primeTail.take(3).join(' '), '高位质数尾'),
+        MetricItem('蓝球转势', oddTurnBlues.take(4).join(' '), oddTurnActive ? '奇数回补' : '奇数备选'),
       ],
     );
   }
-}
 
+  static List<String> _rankBackfill({
+    required List<int> numbers,
+    required List<int> recentValues,
+    required Map<String, int> globalCounts,
+  }) {
+    final recentCounts = {
+      for (final number in numbers) number: recentValues.where((item) => item == number).length,
+    };
+    final lastSeen = {
+      for (final number in numbers) number: recentValues.indexWhere((item) => item == number),
+    };
+    final ranked = numbers.toList()
+      ..sort((a, b) {
+        final aLast = lastSeen[a] == -1 ? 999 : lastSeen[a]!;
+        final bLast = lastSeen[b] == -1 ? 999 : lastSeen[b]!;
+        final lastCompare = bLast.compareTo(aLast);
+        if (lastCompare != 0) return lastCompare;
+        final recentCompare = (recentCounts[a] ?? 0).compareTo(recentCounts[b] ?? 0);
+        if (recentCompare != 0) return recentCompare;
+        final globalCompare = (globalCounts[ballLabel(a)] ?? 0).compareTo(globalCounts[ballLabel(b)] ?? 0);
+        if (globalCompare != 0) return globalCompare;
+        return a.compareTo(b);
+      });
+    return ranked.map(ballLabel).toList();
+  }
+}
 PrizeCheck? checkTicketPrize(Ticket ticket, List<StoredDraw> draws) {
   if (draws.isEmpty || ticket.baseIssue.isEmpty) return null;
   final baseIssue = int.tryParse(ticket.baseIssue);
