@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../models/ssq_models.dart';
 import '../widgets/ssq_widgets.dart';
@@ -6,6 +6,7 @@ import '../widgets/ssq_widgets.dart';
 class PickPage extends StatelessWidget {
   const PickPage({
     super.key,
+    required this.lottery,
     required this.strategy,
     required this.manualStrategy,
     required this.tickets,
@@ -26,6 +27,7 @@ class PickPage extends StatelessWidget {
     required this.onClearManual,
   });
 
+  final LotterySpec lottery;
   final String strategy;
   final String manualStrategy;
   final List<Ticket> tickets;
@@ -52,7 +54,8 @@ class PickPage extends StatelessWidget {
       children: [
         SectionCard(
           title: '一键建议号',
-          trailing: StrategyDropdown(value: strategy, onChanged: onStrategyChanged),
+          trailing:
+              StrategyDropdown(value: strategy, onChanged: onStrategyChanged),
           child: Column(
             children: [
               Row(
@@ -108,21 +111,35 @@ class PickPage extends StatelessWidget {
         const SizedBox(height: 10),
         SectionCard(
           title: '自选补全',
-          trailing: StrategyDropdown(value: manualStrategy, onChanged: onManualStrategyChanged),
+          trailing: StrategyDropdown(
+              value: manualStrategy, onChanged: onManualStrategyChanged),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SubTitle('红球'),
-              NumberGrid(max: 33, selected: manualReds, color: const Color(0xFFDC2626), onTap: onToggleRed),
+              SubTitle(lottery.frontName),
+              NumberGrid(
+                  max: lottery.frontMax,
+                  selected: manualReds,
+                  color: const Color(0xFFDC2626),
+                  onTap: onToggleRed),
               const SizedBox(height: 10),
-              const SubTitle('蓝球'),
-              NumberGrid(max: 16, selected: {if (manualBlue.isNotEmpty) manualBlue}, color: const Color(0xFF2563EB), onTap: onToggleBlue),
+              SubTitle(lottery.backName),
+              NumberGrid(
+                  max: lottery.backMax,
+                  selected: splitBallText(manualBlue).toSet(),
+                  color: const Color(0xFF2563EB),
+                  onTap: onToggleBlue),
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(child: FilledButton(onPressed: onCompleteManual, child: const Text('补全'))),
+                  Expanded(
+                      child: FilledButton(
+                          onPressed: onCompleteManual,
+                          child: const Text('补全'))),
                   const SizedBox(width: 8),
-                  Expanded(child: OutlinedButton(onPressed: onClearManual, child: const Text('清空'))),
+                  Expanded(
+                      child: OutlinedButton(
+                          onPressed: onClearManual, child: const Text('清空'))),
                 ],
               ),
               if (manualTicket != null) ...[

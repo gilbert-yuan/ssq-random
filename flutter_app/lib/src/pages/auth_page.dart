@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({
@@ -12,7 +12,8 @@ class AuthPage extends StatefulWidget {
   final bool loading;
   final String? error;
   final Future<void> Function(String username, String password) onLogin;
-  final Future<void> Function(String username, String password, String displayName) onRegister;
+  final Future<void> Function(
+      String username, String password, String displayName) onRegister;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -47,7 +48,7 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('双色球助手')),
+      appBar: AppBar(title: const Text('彩票助手')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -69,18 +70,28 @@ class _AuthPageState extends State<AuthPage> {
                     children: [
                       Text(
                         _registerMode ? '注册本机账户' : '登录本机账户',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 14),
                       SegmentedButton<bool>(
                         segments: const [
-                          ButtonSegment(value: false, label: Text('登录'), icon: Icon(Icons.login)),
-                          ButtonSegment(value: true, label: Text('注册'), icon: Icon(Icons.person_add_outlined)),
+                          ButtonSegment(
+                              value: false,
+                              label: Text('登录'),
+                              icon: Icon(Icons.login)),
+                          ButtonSegment(
+                              value: true,
+                              label: Text('注册'),
+                              icon: Icon(Icons.person_add_outlined)),
                         ],
                         selected: {_registerMode},
                         onSelectionChanged: widget.loading
                             ? null
-                            : (value) => setState(() => _registerMode = value.first),
+                            : (value) =>
+                                setState(() => _registerMode = value.first),
                       ),
                       const SizedBox(height: 14),
                       TextField(
@@ -98,15 +109,20 @@ class _AuthPageState extends State<AuthPage> {
                         controller: _passwordController,
                         enabled: !widget.loading,
                         obscureText: _obscure,
-                        textInputAction: _registerMode ? TextInputAction.next : TextInputAction.done,
+                        textInputAction: _registerMode
+                            ? TextInputAction.next
+                            : TextInputAction.done,
                         onSubmitted: (_) => widget.loading ? null : _submit(),
                         decoration: InputDecoration(
                           labelText: '密码',
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
                             tooltip: _obscure ? '显示密码' : '隐藏密码',
-                            onPressed: () => setState(() => _obscure = !_obscure),
-                            icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
+                            icon: Icon(_obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined),
                           ),
                           border: const OutlineInputBorder(),
                         ),
@@ -127,7 +143,8 @@ class _AuthPageState extends State<AuthPage> {
                       ],
                       if (widget.error != null) ...[
                         const SizedBox(height: 10),
-                        Text(widget.error!, style: const TextStyle(color: Color(0xFFB91C1C))),
+                        Text(widget.error!,
+                            style: const TextStyle(color: Color(0xFFB91C1C))),
                       ],
                       const SizedBox(height: 14),
                       FilledButton.icon(
@@ -135,10 +152,15 @@ class _AuthPageState extends State<AuthPage> {
                         icon: widget.loading
                             ? const SizedBox.square(
                                 dimension: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Icon(_registerMode ? Icons.person_add_outlined : Icons.login),
-                        label: Text(widget.loading ? '处理中' : (_registerMode ? '注册并登录' : '登录')),
+                            : Icon(_registerMode
+                                ? Icons.person_add_outlined
+                                : Icons.login),
+                        label: Text(widget.loading
+                            ? '处理中'
+                            : (_registerMode ? '注册并登录' : '登录')),
                       ),
                       const SizedBox(height: 8),
                       Text(

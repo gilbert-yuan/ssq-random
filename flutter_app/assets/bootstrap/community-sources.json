@@ -1,34 +1,57 @@
 [
   {
     "name": "500 SSQ Expert Picks",
+    "lotteryKey": "ssq",
     "url": "https://zx.500.com/ssq/n_zjtj/"
   },
   {
     "name": "500 SSQ Kill Picks",
+    "lotteryKey": "ssq",
     "url": "https://zx.500.com/ssq/zhuanjiashahao.php"
   },
   {
     "name": "500 SSQ Analysis",
+    "lotteryKey": "ssq",
     "url": "https://zx.500.com/ssq/ssqfx/"
   },
   {
     "name": "17500 SSQ Forum",
+    "lotteryKey": "ssq",
     "url": "https://bbss.17500.cn/forum-35-1.html"
   },
   {
     "name": "17500 SSQ Data",
+    "lotteryKey": "ssq",
     "url": "https://www.17500.cn/ssq/"
   },
   {
     "name": "Sina Aicai SSQ",
+    "lotteryKey": "ssq",
     "url": "https://lottery.sina.com.cn/ssq/"
   },
   {
     "name": "Okooo SSQ",
+    "lotteryKey": "ssq",
     "url": "https://www.okooo.com/shuangseqiu/"
   },
   {
     "name": "CWLC SSQ",
+    "lotteryKey": "ssq",
     "url": "https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/"
+  },
+  {
+    "name": "17500 DLT Data",
+    "lotteryKey": "dlt",
+    "url": "https://www.17500.cn/dlt/"
+  },
+  {
+    "name": "500 DLT Expert Picks",
+    "lotteryKey": "dlt",
+    "url": "https://zx.500.com/dlt/n_zjtj/"
+  },
+  {
+    "name": "500 DLT Kill Picks",
+    "lotteryKey": "dlt",
+    "url": "https://zx.500.com/dlt/zhuanjiashahao.php"
   }
 ]

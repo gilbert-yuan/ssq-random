@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../models/ssq_models.dart';
 import '../runtime/local_database.dart';
@@ -7,6 +7,7 @@ import '../widgets/ssq_widgets.dart';
 class RecordsPage extends StatelessWidget {
   const RecordsPage({
     super.key,
+    required this.lottery,
     required this.favorites,
     required this.draws,
     required this.selectedIssue,
@@ -15,9 +16,10 @@ class RecordsPage extends StatelessWidget {
     required this.onCopy,
     required this.onCopyAll,
     required this.onRemove,
-    required this.onClear,
+    required this.onClearIssue,
   });
 
+  final LotterySpec lottery;
   final List<Ticket> favorites;
   final List<StoredDraw> draws;
   final String selectedIssue;
@@ -26,7 +28,7 @@ class RecordsPage extends StatelessWidget {
   final ValueChanged<Ticket> onCopy;
   final void Function(List<Ticket> tickets, String label) onCopyAll;
   final ValueChanged<Ticket> onRemove;
-  final VoidCallback onClear;
+  final ValueChanged<String> onClearIssue;
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +38,13 @@ class RecordsPage extends StatelessWidget {
     if (currentIssue.isNotEmpty) issueSet.add(currentIssue);
     final issues = issueSet.toList()..sort((a, b) => b.compareTo(a));
     final options = [...issues, '全部'];
-    final defaultIssue = currentIssue.isNotEmpty ? currentIssue : (issues.isNotEmpty ? issues.first : '全部');
-    final activeIssue = selectedIssue.isNotEmpty && options.contains(selectedIssue) ? selectedIssue : defaultIssue;
+    final defaultIssue = currentIssue.isNotEmpty
+        ? currentIssue
+        : (issues.isNotEmpty ? issues.first : '全部');
+    final activeIssue =
+        selectedIssue.isNotEmpty && options.contains(selectedIssue)
+            ? selectedIssue
+            : defaultIssue;
     final visible = activeIssue == '全部'
         ? favorites
         : favorites.where((ticket) {
@@ -46,26 +53,32 @@ class RecordsPage extends StatelessWidget {
           }).toList(growable: false);
     final summary = FavoriteStats.fromTickets(favorites, draws);
     final visibleSummary = FavoriteStats.fromTickets(visible, draws);
-    final activeLabel = activeIssue == currentIssue && currentIssue.isNotEmpty ? '当前期' : '第 $activeIssue 期';
+    final activeLabel = activeIssue == currentIssue && currentIssue.isNotEmpty
+        ? '当前期'
+        : '第 $activeIssue 期';
 
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
         SectionCard(
-          title: '收藏统计',
+          title: '${lottery.shortName}收藏统计',
           trailing: Text(activeIssue == '全部' ? '全部期号' : activeLabel),
           child: MetricGrid(
             metrics: [
-              MetricItem('总收藏', '${summary.total}', '当前显示 ${visibleSummary.total} 注'),
-              MetricItem('已核对', '${summary.checkedCount}', '待开奖 ${summary.total - summary.checkedCount} 注'),
-              MetricItem('中奖个数', '${summary.winningCount}', '当前 ${visibleSummary.winningCount} 注'),
-              MetricItem('中奖总额', formatYuan(summary.totalAmount), '当前 ${formatYuan(visibleSummary.totalAmount)}'),
+              MetricItem(
+                  '总收藏', '${summary.total}', '当前显示 ${visibleSummary.total} 注'),
+              MetricItem('已核对', '${summary.checkedCount}',
+                  '待开奖 ${summary.total - summary.checkedCount} 注'),
+              MetricItem('中奖个数', '${summary.winningCount}',
+                  '当前 ${visibleSummary.winningCount} 注'),
+              MetricItem('中奖总额', formatYuan(summary.totalAmount),
+                  '当前 ${formatYuan(visibleSummary.totalAmount)}'),
             ],
           ),
         ),
         const SizedBox(height: 10),
         SectionCard(
-          title: '收藏记录',
+          title: '${lottery.shortName}收藏记录',
           trailing: Text('${visible.length}/${favorites.length} 注'),
           child: Column(
             children: [
@@ -102,7 +115,9 @@ class RecordsPage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: visible.isEmpty ? null : () => onCopyAll(visible, '收藏'),
+                      onPressed: visible.isEmpty
+                          ? null
+                          : () => onCopyAll(visible, '收藏'),
                       icon: const Icon(Icons.copy_all_outlined),
                       label: const Text('复制当前'),
                     ),
@@ -110,9 +125,11 @@ class RecordsPage extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: favorites.isEmpty ? null : onClear,
+                      onPressed: visible.isEmpty || activeIssue == '全部'
+                          ? null
+                          : () => onClearIssue(activeIssue),
                       icon: const Icon(Icons.delete_sweep_outlined),
-                      label: const Text('清空'),
+                      label: const Text('清空当前期'),
                     ),
                   ),
                 ],
@@ -126,11 +143,12 @@ class RecordsPage extends StatelessWidget {
               else if (visible.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text(activeIssue == '全部' ? '暂无收藏号码' : '当前期暂无收藏')),
+                  child: Center(
+                      child: Text(activeIssue == '全部' ? '暂无收藏号码' : '当前期暂无收藏')),
                 )
               else
                 ...visible.map((ticket) {
-                  final prize = checkTicketPrize(ticket, draws);
+                  final prize = checkTicketPrize(ticket, draws, spec: lottery);
                   final status = prize == null
                       ? '待开奖'
                       : '${prize.level} ${prize.hitText} ${formatYuan(prize.amount)}';

@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -47,7 +47,8 @@ class NativeLoadingScreen extends StatelessWidget {
 }
 
 class NativeErrorScreen extends StatelessWidget {
-  const NativeErrorScreen({super.key, required this.error, required this.onRetry});
+  const NativeErrorScreen(
+      {super.key, required this.error, required this.onRetry});
 
   final String error;
   final VoidCallback onRetry;
@@ -77,7 +78,8 @@ class NativeErrorScreen extends StatelessWidget {
 }
 
 class SectionCard extends StatelessWidget {
-  const SectionCard({super.key, required this.title, required this.child, this.trailing});
+  const SectionCard(
+      {super.key, required this.title, required this.child, this.trailing});
 
   final String title;
   final Widget child;
@@ -102,7 +104,10 @@ class SectionCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
                 if (trailing != null) trailing!,
@@ -118,9 +123,10 @@ class SectionCard extends StatelessWidget {
 }
 
 class LatestDrawCard extends StatelessWidget {
-  const LatestDrawCard({super.key, required this.draw});
+  const LatestDrawCard({super.key, required this.draw, required this.lottery});
 
   final StoredDraw? draw;
+  final LotterySpec lottery;
 
   @override
   Widget build(BuildContext context) {
@@ -142,8 +148,10 @@ class LatestDrawCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
-                        child: Text('最新开奖', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                      Expanded(
+                        child: Text('${lottery.shortName}最新开奖',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 18)),
                       ),
                       BadgePill(text: latest.issue),
                     ],
@@ -151,7 +159,9 @@ class LatestDrawCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   BallRow(reds: latest.red, blue: latest.blue),
                   const SizedBox(height: 10),
-                  Text('开奖日期 ${latest.date} · 来源 ${latest.source}', style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                      '${lottery.rangeText} · 开奖日期 ${latest.date} · 来源 ${latest.source}',
+                      style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
       ),
@@ -203,8 +213,15 @@ class MetricBox extends StatelessWidget {
         children: [
           Text(metric.label, style: Theme.of(context).textTheme.labelSmall),
           const SizedBox(height: 4),
-          Text(metric.value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-          Text(metric.detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+          Text(metric.value,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w900)),
+          Text(metric.detail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
@@ -245,19 +262,30 @@ class TicketTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: BallRow(reds: ticket.reds, blue: ticket.blue, small: true)),
+              Expanded(
+                  child: BallRow(
+                      reds: ticket.reds, blue: ticket.blue, small: true)),
               BadgePill(text: '${ticket.score}'),
               if (onCopy != null) ...[
                 const SizedBox(width: 2),
-                MiniIconButton(tooltip: '复制', icon: Icons.copy_outlined, onPressed: onCopy),
+                MiniIconButton(
+                    tooltip: '复制',
+                    icon: Icons.copy_outlined,
+                    onPressed: onCopy),
               ],
               if (onFavorite != null) ...[
                 const SizedBox(width: 2),
-                MiniIconButton(tooltip: '收藏', icon: Icons.bookmark_add_outlined, onPressed: onFavorite),
+                MiniIconButton(
+                    tooltip: '收藏',
+                    icon: Icons.bookmark_add_outlined,
+                    onPressed: onFavorite),
               ],
               if (onDelete != null) ...[
                 const SizedBox(width: 2),
-                MiniIconButton(tooltip: '删除', icon: Icons.delete_outline, onPressed: onDelete),
+                MiniIconButton(
+                    tooltip: '删除',
+                    icon: Icons.delete_outline,
+                    onPressed: onDelete),
               ],
             ],
           ),
@@ -283,8 +311,13 @@ class TicketTile extends StatelessWidget {
     );
   }
 }
+
 class MiniIconButton extends StatelessWidget {
-  const MiniIconButton({super.key, required this.tooltip, required this.icon, required this.onPressed});
+  const MiniIconButton(
+      {super.key,
+      required this.tooltip,
+      required this.icon,
+      required this.onPressed});
 
   final String tooltip;
   final IconData icon;
@@ -306,7 +339,8 @@ class MiniIconButton extends StatelessWidget {
 }
 
 class BallRow extends StatelessWidget {
-  const BallRow({super.key, required this.reds, required this.blue, this.small = false});
+  const BallRow(
+      {super.key, required this.reds, required this.blue, this.small = false});
 
   final List<String> reds;
   final String blue;
@@ -320,7 +354,10 @@ class BallRow extends StatelessWidget {
         Ball(text: red, color: const Color(0xFFDC2626), small: small),
         gap,
       ],
-      Ball(text: blue, color: const Color(0xFF2563EB), small: small),
+      for (final back in splitBallText(blue)) ...[
+        Ball(text: back, color: const Color(0xFF2563EB), small: small),
+        gap,
+      ],
     ];
     return Align(
       alignment: Alignment.centerLeft,
@@ -334,7 +371,8 @@ class BallRow extends StatelessWidget {
 }
 
 class Ball extends StatelessWidget {
-  const Ball({super.key, required this.text, required this.color, this.small = false});
+  const Ball(
+      {super.key, required this.text, required this.color, this.small = false});
 
   final String text;
   final Color color;
@@ -350,14 +388,22 @@ class Ball extends StatelessWidget {
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       child: Text(
         text,
-        style: TextStyle(color: Colors.white, fontSize: small ? 9 : 12, fontWeight: FontWeight.w900),
+        style: TextStyle(
+            color: Colors.white,
+            fontSize: small ? 9 : 12,
+            fontWeight: FontWeight.w900),
       ),
     );
   }
 }
 
 class NumberGrid extends StatelessWidget {
-  const NumberGrid({super.key, required this.max, required this.selected, required this.color, required this.onTap});
+  const NumberGrid(
+      {super.key,
+      required this.max,
+      required this.selected,
+      required this.color,
+      required this.onTap});
 
   final int max;
   final Set<String> selected;
@@ -386,11 +432,14 @@ class NumberGrid extends StatelessWidget {
             decoration: BoxDecoration(
               color: active ? color : Colors.white,
               shape: BoxShape.circle,
-              border: Border.all(color: active ? color : const Color(0xFFCBD5E1)),
+              border:
+                  Border.all(color: active ? color : const Color(0xFFCBD5E1)),
             ),
             child: Text(
               value,
-              style: TextStyle(color: active ? Colors.white : const Color(0xFF111827), fontWeight: FontWeight.w800),
+              style: TextStyle(
+                  color: active ? Colors.white : const Color(0xFF111827),
+                  fontWeight: FontWeight.w800),
             ),
           ),
         );
@@ -407,7 +456,8 @@ class FrequencyList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxCount = rows.isEmpty ? 1 : rows.map((item) => item.count).reduce(max);
+    final maxCount =
+        rows.isEmpty ? 1 : rows.map((item) => item.count).reduce(max);
     return Column(
       children: rows.map((row) {
         final width = row.count / maxCount;
@@ -420,11 +470,17 @@ class FrequencyList extends StatelessWidget {
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(value: width, minHeight: 8, color: color, backgroundColor: const Color(0xFFE2E8F0)),
+                  child: LinearProgressIndicator(
+                      value: width,
+                      minHeight: 8,
+                      color: color,
+                      backgroundColor: const Color(0xFFE2E8F0)),
                 ),
               ),
               const SizedBox(width: 8),
-              SizedBox(width: 28, child: Text('${row.count}', textAlign: TextAlign.end)),
+              SizedBox(
+                  width: 28,
+                  child: Text('${row.count}', textAlign: TextAlign.end)),
             ],
           ),
         );
@@ -440,13 +496,18 @@ class DrawHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sum = draw.red.map(int.parse).fold<int>(0, (total, item) => total + item);
+    final sum =
+        draw.red.map(int.parse).fold<int>(0, (total, item) => total + item);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          SizedBox(width: 74, child: Text(draw.issue, style: const TextStyle(fontWeight: FontWeight.w700))),
-          Expanded(child: BallRow(reds: draw.red, blue: draw.blue, small: true)),
+          SizedBox(
+              width: 74,
+              child: Text(draw.issue,
+                  style: const TextStyle(fontWeight: FontWeight.w700))),
+          Expanded(
+              child: BallRow(reds: draw.red, blue: draw.blue, small: true)),
           Text('和值 $sum', style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
@@ -472,7 +533,10 @@ class AdviceRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: 74, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+          SizedBox(
+              width: 74,
+              child: Text(label,
+                  style: const TextStyle(fontWeight: FontWeight.w700))),
           Expanded(child: Text(value.isEmpty ? '--' : value)),
         ],
       ),
@@ -481,7 +545,8 @@ class AdviceRow extends StatelessWidget {
 }
 
 class StrategyDropdown extends StatelessWidget {
-  const StrategyDropdown({super.key, required this.value, required this.onChanged});
+  const StrategyDropdown(
+      {super.key, required this.value, required this.onChanged});
 
   final String value;
   final ValueChanged<String> onChanged;
@@ -491,7 +556,10 @@ class StrategyDropdown extends StatelessWidget {
     return DropdownButton<String>(
       value: value,
       underline: const SizedBox.shrink(),
-      items: strategyLabels.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
+      items: strategyLabels.entries
+          .map((entry) =>
+              DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+          .toList(),
       onChanged: (value) {
         if (value != null) onChanged(value);
       },
@@ -508,7 +576,11 @@ class SubTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(text, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+      child: Text(text,
+          style: Theme.of(context)
+              .textTheme
+              .labelLarge
+              ?.copyWith(fontWeight: FontWeight.w800)),
     );
   }
 }
@@ -527,9 +599,8 @@ class BadgePill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+      child: Text(text,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
     );
   }
 }
-
-

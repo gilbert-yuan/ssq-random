@@ -23,7 +23,7 @@ class SsqMobileApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '双色球助手',
+      title: '彩票助手',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -61,6 +61,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   List<String> _communityFailures = const [];
   Ticket? _manualTicket;
   String _manualBlue = '';
+  String _lotteryKey = 'ssq';
   String _strategy = 'balanced';
   String _manualStrategy = 'balanced';
   String _selectedFavoriteIssue = '';
@@ -75,7 +76,9 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   String? _communityError;
   DateTime? _communityUpdatedAt;
 
-  AnalysisSnapshot get _analysis => AnalysisSnapshot.fromDraws(_draws);
+  LotterySpec get _lottery => lotterySpecOf(_lotteryKey);
+  AnalysisSnapshot get _analysis =>
+      AnalysisSnapshot.fromDraws(_draws, spec: _lottery);
   StoredDraw? get _latest => _draws.isEmpty ? null : _draws.first;
 
   @override
@@ -104,19 +107,29 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         payload['draws'] as List? ?? const [],
       );
       final database = await LocalDatabase.open(sampleDraws: sampleDraws);
-      final draws = await database.readDraws(limit: 240);
+      final savedLottery =
+          await database.readMeta('lottery_key', defaultValue: 'ssq');
+      final savedLotteryKey =
+          lotterySpecs.containsKey(savedLottery) ? savedLottery : 'ssq';
+      final lottery = lotterySpecOf(savedLotteryKey);
+      final draws =
+          await database.readDraws(limit: 240, lotteryKey: lottery.key);
       final token = await database.readLocalSessionToken();
-      final user = token.isEmpty ? null : await database.resolveSessionUser(token);
-      final records = user == null ? const <StoredRecord>[] : await database.readRecords(user.id);
+      final user =
+          token.isEmpty ? null : await database.resolveSessionUser(token);
+      final records = user == null
+          ? const <StoredRecord>[]
+          : await database.readRecords(user.id, lotteryKey: lottery.key);
       var communitySources = const <CommunitySource>[];
       try {
-        communitySources = await _communityService.loadSources();
+        communitySources = await _communityService.loadSources(lottery);
       } catch (_) {
         communitySources = const [];
       }
       if (!mounted) return;
       setState(() {
         _database = database;
+        _lotteryKey = lottery.key;
         _draws = draws;
         _user = user;
         _sessionToken = user == null ? '' : token;
@@ -124,10 +137,17 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         _tickets = _generateTickets('balanced');
         _favorites
           ..clear()
-          ..addAll(records.where((record) => record.type == 'favorite').map(ticketFromRecord));
+          ..addAll(records
+              .where((record) => record.type == 'favorite')
+              .map(ticketFromRecord));
         _loading = false;
-        _status = user == null ? null : '已加载 ${draws.length} 期开奖数据和 ${_favorites.length} 条收藏';
+        _status = user == null
+            ? null
+            : '已加载 ${draws.length} 期开奖数据和 ${_favorites.length} 条收藏';
       });
+      if (_shouldRefreshDraws(lottery, draws)) {
+        await _refreshOfficialDraws();
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -150,14 +170,17 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     final database = _database;
     if (database == null) return;
     await database.saveLocalSessionToken(result.sessionToken);
-    final records = await database.readRecords(result.user.id);
+    final records =
+        await database.readRecords(result.user.id, lotteryKey: _lotteryKey);
     if (!mounted) return;
     setState(() {
       _user = result.user;
       _sessionToken = result.sessionToken;
       _favorites
         ..clear()
-        ..addAll(records.where((record) => record.type == 'favorite').map(ticketFromRecord));
+        ..addAll(records
+            .where((record) => record.type == 'favorite')
+            .map(ticketFromRecord));
       _authLoading = false;
       _authError = null;
       _status = '已登录，载入 ${_favorites.length} 条收藏';
@@ -186,7 +209,8 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     }
   }
 
-  Future<void> _register(String username, String password, String displayName) async {
+  Future<void> _register(
+      String username, String password, String displayName) async {
     final database = _database;
     if (database == null || _authLoading) return;
     setState(() {
@@ -195,7 +219,11 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     });
     try {
       final result = await database.registerUser(
-        {'username': username, 'password': password, 'displayName': displayName},
+        {
+          'username': username,
+          'password': password,
+          'displayName': displayName
+        },
         clientType: 'flutter',
       );
       await _completeAuth(result);
@@ -225,41 +253,76 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     });
   }
 
+  Future<void> _switchLottery(String lotteryKey) async {
+    if (lotteryKey == _lotteryKey || !lotterySpecs.containsKey(lotteryKey)) {
+      return;
+    }
+    final database = _database;
+    if (database == null) return;
+    await database.saveMeta('lottery_key', lotteryKey);
+    final lottery = lotterySpecOf(lotteryKey);
+    final draws = await database.readDraws(limit: 240, lotteryKey: lotteryKey);
+    final records = _user == null
+        ? const <StoredRecord>[]
+        : await database.readRecords(_user!.id, lotteryKey: lotteryKey);
+    var communitySources = const <CommunitySource>[];
+    try {
+      communitySources = await _communityService.loadSources(lottery);
+    } catch (_) {
+      communitySources = const [];
+    }
+    if (!mounted) return;
+    setState(() {
+      _lotteryKey = lotteryKey;
+      _draws = draws;
+      _tickets = draws.isEmpty ? const [] : _generateTickets(_strategy);
+      _favorites
+        ..clear()
+        ..addAll(records
+            .where((record) => record.type == 'favorite')
+            .map(ticketFromRecord));
+      _manualReds.clear();
+      _manualBlue = '';
+      _manualTicket = null;
+      _selectedFavoriteIssue = '';
+      _communitySources = communitySources;
+      _communityTickets = const [];
+      _communityFailures = const [];
+      _communityError = null;
+      _status = '已切换到 ${_lottery.name}';
+    });
+    if (_shouldRefreshDraws(lottery, draws)) {
+      await _refreshOfficialDraws();
+    }
+  }
+
+  bool _shouldRefreshDraws(LotterySpec lottery, List<StoredDraw> draws) {
+    if (draws.isEmpty) return true;
+    return lottery.key == 'dlt' && draws.length < 120;
+  }
+
   Future<void> _refreshOfficialDraws() async {
     final database = _database;
     if (database == null || _refreshing) return;
+    final lottery = _lottery;
     setState(() {
       _refreshing = true;
-      _status = '正在同步官方开奖数据';
+      _status = '正在同步${lottery.shortName}开奖数据';
     });
     try {
-      final uri = Uri.parse(
-        'https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice'
-        '?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd='
-        '&pageNo=1&pageSize=240&week=&systemType=PC',
-      );
-      final response = await http.get(uri, headers: const {
-        'accept': 'application/json,text/plain,*/*',
-        'user-agent': 'Flutter SSQ Native App',
-        'referer': 'https://www.cwl.gov.cn/',
-      }).timeout(const Duration(seconds: 12));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('HTTP ${response.statusCode}');
-      }
-      final payload = json.decode(response.body) as Map<String, dynamic>;
-      final rows = List<Map<String, dynamic>>.from(
-        payload['result'] as List? ?? const [],
-      );
-      final draws = rows.map(database.normalizeDraw).whereType<StoredDraw>().toList();
+      final draws = lottery.key == 'dlt'
+          ? await _fetchDltDraws(database, lottery)
+          : await _fetchSsqDraws(database, lottery);
       if (draws.isEmpty) throw Exception('官方接口没有返回开奖数据');
       await database.upsertDraws(draws);
-      final latest = await database.readDraws(limit: 240);
+      final latest =
+          await database.readDraws(limit: 240, lotteryKey: lottery.key);
       if (!mounted) return;
       setState(() {
         _draws = latest;
         _tickets = _generateTickets(_strategy);
         _refreshing = false;
-        _status = '已同步 ${latest.length} 期开奖数据';
+        _status = '已同步 ${latest.length} 期${lottery.shortName}开奖数据';
       });
     } catch (error) {
       if (!mounted) return;
@@ -270,21 +333,140 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     }
   }
 
+  Future<List<StoredDraw>> _fetchSsqDraws(
+      LocalDatabase database, LotterySpec lottery) async {
+    final uri = Uri.parse(
+      'https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice'
+      '?name=${lottery.officialName}&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd='
+      '&pageNo=1&pageSize=240&week=&systemType=PC',
+    );
+    final response = await http.get(uri, headers: const {
+      'accept': 'application/json,text/plain,*/*',
+      'user-agent': 'Flutter Lotto Native App',
+      'referer': 'https://www.cwl.gov.cn/',
+    }).timeout(const Duration(seconds: 12));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+    final payload = json.decode(response.body) as Map<String, dynamic>;
+    final rows = List<Map<String, dynamic>>.from(
+      payload['result'] as List? ?? const [],
+    );
+    return rows
+        .map(
+          (row) => database.normalizeDraw(
+            row,
+            lotteryKey: lottery.key,
+            frontMax: lottery.frontMax,
+            backMax: lottery.backMax,
+            frontCount: lottery.frontCount,
+            backCount: lottery.backCount,
+          ),
+        )
+        .whereType<StoredDraw>()
+        .toList(growable: false);
+  }
+
+  Future<List<StoredDraw>> _fetchDltDraws(
+      LocalDatabase database, LotterySpec lottery) async {
+    final uri = Uri.parse(
+        'https://datachart.500.com/dlt/history/newinc/history.php?limit=240&sort=0');
+    final response = await http.get(uri, headers: const {
+      'accept':
+          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'user-agent': 'Flutter Lotto Native App',
+      'referer': 'https://datachart.500.com/dlt/history/history.shtml',
+    }).timeout(const Duration(seconds: 12));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+    final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+    final rows = RegExp(r'<tr[^>]*>([\s\S]*?)</tr>', caseSensitive: false)
+        .allMatches(body)
+        .map((match) => match.group(1) ?? '')
+        .map(_parseDltHistoryRow)
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (row) => database.normalizeDraw(
+            row,
+            lotteryKey: lottery.key,
+            frontMax: lottery.frontMax,
+            backMax: lottery.backMax,
+            frontCount: lottery.frontCount,
+            backCount: lottery.backCount,
+          ),
+        )
+        .whereType<StoredDraw>()
+        .toList(growable: false);
+    return rows.take(240).toList(growable: false);
+  }
+
+  Map<String, dynamic>? _parseDltHistoryRow(String rowHtml) {
+    final cleanRow = rowHtml.replaceAll(RegExp(r'<!--[\s\S]*?-->'), ' ');
+    final cells = RegExp(r'<td[^>]*>([\s\S]*?)</td>', caseSensitive: false)
+        .allMatches(cleanRow)
+        .map((match) => _stripHtml(match.group(1) ?? ''))
+        .where((text) => text.isNotEmpty)
+        .toList(growable: false);
+    if (cells.length < 8) return null;
+    final issue = RegExp(r'<td[^>]*>\s*(\d{5})\s*</td>', caseSensitive: false)
+            .firstMatch(cleanRow)
+            ?.group(1) ??
+        '';
+    final reds = RegExp(r'<td[^>]*class="[^"]*cfont2[^"]*"[^>]*>(\d{1,2})</td>',
+            caseSensitive: false)
+        .allMatches(cleanRow)
+        .map((match) => int.tryParse(match.group(1) ?? ''))
+        .whereType<int>()
+        .map(ballLabel)
+        .toList(growable: false);
+    final blues = RegExp(
+            r'<td[^>]*class="[^"]*cfont4[^"]*"[^>]*>(\d{1,2})</td>',
+            caseSensitive: false)
+        .allMatches(cleanRow)
+        .map((match) => int.tryParse(match.group(1) ?? ''))
+        .whereType<int>()
+        .map(ballLabel)
+        .toList(growable: false);
+    if (issue.isEmpty || reds.length < 5 || blues.length < 2) return null;
+    final date = cells.firstWhere(
+      (cell) => RegExp(r'\d{4}-\d{2}-\d{2}').hasMatch(cell),
+      orElse: () => '',
+    );
+    return {
+      'issue': issue,
+      'date': date,
+      'red': reds.take(5).toList(growable: false),
+      'blue': blues.take(2).toList(growable: false),
+      'source': '500彩票网',
+    };
+  }
+
+  String _stripHtml(String html) {
+    return html
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   Future<void> _refreshCommunity() async {
     if (_communityLoading) return;
+    final lottery = _lottery;
     setState(() {
       _communityLoading = true;
       _communityError = null;
       _status = '正在刷新社区共振';
     });
     try {
-      final result = await _communityService.fetchResonance();
+      final result = await _communityService.fetchResonance(lottery);
       final latest = _latest;
       final tickets = result.picks
           .map(
             (pick) => pick.toTicket(
               baseIssue: latest?.issue ?? '',
               baseDate: latest?.date ?? '',
+              lotteryKey: lottery.key,
             ),
           )
           .toList(growable: false);
@@ -295,7 +477,8 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         _communityFailures = result.failedSources;
         _communityUpdatedAt = result.updatedAt;
         _communityLoading = false;
-        _status = tickets.isEmpty ? '社区共振暂未识别到号码' : '已刷新 ${tickets.length} 组社区共振号';
+        _status =
+            tickets.isEmpty ? '社区共振暂未识别到号码' : '已刷新 ${tickets.length} 组社区共振号';
       });
     } catch (error) {
       if (!mounted) return;
@@ -326,6 +509,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         sourceName: '本地趋势',
         baseIssue: _latest?.issue ?? '',
         baseDate: _latest?.date ?? '',
+        lotteryKey: _lotteryKey,
       );
       if (seen.add(ticket.key)) tickets.add(ticket);
       guard += 1;
@@ -333,7 +517,8 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     return tickets;
   }
 
-  List<String> _pickReds(String strategy, AnalysisSnapshot analysis, Random random) {
+  List<String> _pickReds(
+      String strategy, AnalysisSnapshot analysis, Random random) {
     var best = <String>[];
     var bestScore = -9999;
     for (var attempt = 0; attempt < 72; attempt += 1) {
@@ -346,14 +531,19 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         ...analysis.allReds,
       ]..shuffle(random);
       for (final red in pool) {
-        if (selected.length >= 6) break;
+        if (selected.length >= _lottery.frontCount) break;
         if (selected.contains(red)) continue;
-        if (_wouldOverloadZone(selected, red) && random.nextDouble() < 0.72) continue;
-        if (_wouldOverloadHot(strategy, selected, red, analysis) && random.nextDouble() < 0.84) continue;
+        if (_wouldOverloadZone(selected, red) && random.nextDouble() < 0.72) {
+          continue;
+        }
+        if (_wouldOverloadHot(strategy, selected, red, analysis) &&
+            random.nextDouble() < 0.84) {
+          continue;
+        }
         selected.add(red);
       }
       for (final red in analysis.allReds) {
-        if (selected.length >= 6) break;
+        if (selected.length >= _lottery.frontCount) break;
         selected.add(red);
       }
       final reds = selected.toList()..sort();
@@ -363,11 +553,12 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         best = reds;
       }
     }
-    if (best.length == 6) return best;
-    return analysis.allReds.take(6).toList();
+    if (best.length == _lottery.frontCount) return best;
+    return analysis.allReds.take(_lottery.frontCount).toList();
   }
 
-  List<String> _redAnchorsForAttempt(String strategy, AnalysisSnapshot analysis, Random random) {
+  List<String> _redAnchorsForAttempt(
+      String strategy, AnalysisSnapshot analysis, Random random) {
     final anchors = <String>[];
     String? choose(List<String> values, int limit) {
       if (values.isEmpty) return null;
@@ -469,7 +660,8 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     return current >= 2 && selected.length < 5;
   }
 
-  bool _wouldOverloadHot(String strategy, Set<String> selected, String red, AnalysisSnapshot analysis) {
+  bool _wouldOverloadHot(String strategy, Set<String> selected, String red,
+      AnalysisSnapshot analysis) {
     final hotSet = analysis.hotReds.take(10).toSet();
     if (!hotSet.contains(red)) return false;
     final limit = strategy == 'hot' ? 3 : 2;
@@ -479,13 +671,15 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
 
   int _redZone(String red) {
     final value = int.parse(red);
-    if (value <= 11) return 0;
-    if (value <= 22) return 1;
+    final zoneSize = (_lottery.frontMax / 3).ceil();
+    if (value <= zoneSize) return 0;
+    if (value <= zoneSize * 2) return 1;
     return 2;
   }
 
-  int _redQualityScore(List<String> reds, AnalysisSnapshot analysis, String strategy) {
-    if (reds.length != 6) return -999;
+  int _redQualityScore(
+      List<String> reds, AnalysisSnapshot analysis, String strategy) {
+    if (reds.length != _lottery.frontCount) return -999;
     final numbers = reds.map(int.parse).toList()..sort();
     final sum = numbers.fold<int>(0, (total, item) => total + item);
     final oddCount = numbers.where((item) => item.isOdd).length;
@@ -500,17 +694,27 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
 
     final hotHits = reds.where(analysis.hotReds.take(12).contains).length;
     final coldHits = reds.where(analysis.coldReds.take(12).contains).length;
-    final leaderHit = analysis.leaderBackfillReds.take(5).contains(ballLabel(numbers.first));
-    final tailHit = analysis.primeTailReds.take(5).contains(ballLabel(numbers.last));
+    final leaderHit =
+        analysis.leaderBackfillReds.take(5).contains(ballLabel(numbers.first));
+    final tailHit =
+        analysis.primeTailReds.take(5).contains(ballLabel(numbers.last));
     var score = 0;
-    score += sum >= 70 && sum <= 128 ? 18 : 4;
-    if (sum >= 78 && sum <= 118) score += 8;
-    score += oddCount >= 2 && oddCount <= 4 ? 16 : 3;
+    final averageSum = _lottery.frontCount * (_lottery.frontMax + 1) / 2;
+    score += sum >= averageSum * 0.72 && sum <= averageSum * 1.28 ? 18 : 4;
+    if (sum >= averageSum * 0.84 && sum <= averageSum * 1.16) score += 8;
+    final minOdd = max(1, (_lottery.frontCount / 2).floor() - 1);
+    final maxOdd =
+        min(_lottery.frontCount - 1, (_lottery.frontCount / 2).ceil() + 1);
+    score += oddCount >= minOdd && oddCount <= maxOdd ? 16 : 3;
     score += zoneCounts.every((count) => count > 0) ? 18 : 2;
     score += zoneCounts.every((count) => count <= 3) ? 8 : 0;
     score += consecutivePairs <= 1 ? 8 : max(0, 5 - consecutivePairs * 2);
     score += min(hotHits, 2) * 4;
-    score += hotHits <= 2 ? 8 : hotHits == 3 ? 1 : -16;
+    score += hotHits <= 2
+        ? 8
+        : hotHits == 3
+            ? 1
+            : -16;
     score += min(coldHits, 2) * 3;
     if (leaderHit) score += strategy == 'leaderBackfill' ? 16 : 6;
     if (tailHit) score += strategy == 'tailPrime' ? 16 : 6;
@@ -539,24 +743,41 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
           ...analysis.oddTurnBlues.take(2),
         ],
     };
-    final fallback = List.generate(16, (index) => ballLabel(index + 1));
+    final fallback =
+        List.generate(_lottery.backMax, (index) => ballLabel(index + 1));
     final ranked = pool.isEmpty ? fallback : pool;
     final limit = switch (strategy) {
       'blue' => min(6, ranked.length),
       'oddBlueTurn' => min(analysis.blueOddTurnActive ? 7 : 5, ranked.length),
       _ => min(8, ranked.length),
     };
-    return ranked[random.nextInt(max(1, limit))];
+    final selected = <String>{};
+    var guard = 0;
+    while (selected.length < _lottery.backCount && guard < 40) {
+      selected.add(ranked[random.nextInt(max(1, limit))]);
+      guard += 1;
+    }
+    for (final value in fallback) {
+      if (selected.length >= _lottery.backCount) break;
+      selected.add(value);
+    }
+    final values = selected.toList()..sort();
+    return joinBallText(values);
   }
 
   int _scoreTicket(List<String> reds, String blue, AnalysisSnapshot analysis) {
     final redScore = _redQualityScore(reds, analysis, 'balanced');
-    final blueHot = analysis.hotBlues.take(4).contains(blue) ? 8 : 0;
-    final blueOddTurn = analysis.oddTurnBlues.take(6).contains(blue) ? 7 : 0;
-    return min(99, max(45, 50 + (redScore / 2).round() + blueHot + blueOddTurn));
+    final backNumbers = splitBallText(blue);
+    final blueHot =
+        backNumbers.where(analysis.hotBlues.take(4).contains).length * 5;
+    final blueOddTurn =
+        backNumbers.where(analysis.oddTurnBlues.take(6).contains).length * 4;
+    return min(
+        99, max(45, 50 + (redScore / 2).round() + blueHot + blueOddTurn));
   }
 
-  String _strategyReason(String strategy, List<String> reds, String blue, AnalysisSnapshot analysis) {
+  String _strategyReason(String strategy, List<String> reds, String blue,
+      AnalysisSnapshot analysis) {
     final label = strategyLabels[strategy] ?? '均衡趋势';
     final values = reds.map(int.parse).toList()..sort();
     final sum = values.fold<int>(0, (total, item) => total + item);
@@ -568,7 +789,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     final highlights = <String>[
       label,
       '和值 $sum',
-      '奇偶 $oddCount:${6 - oddCount}',
+      '奇偶 $oddCount:${_lottery.frontCount - oddCount}',
       '三区 ${zoneCounts.join('-')}',
     ];
     if (analysis.leaderBackfillReds.take(5).contains(ballLabel(values.first))) {
@@ -577,10 +798,15 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     if (analysis.primeTailReds.take(5).contains(ballLabel(values.last))) {
       highlights.add('凤尾 ${ballLabel(values.last)}');
     }
-    if (analysis.oddTurnBlues.contains(blue) && int.parse(blue).isOdd) {
-      highlights.add('奇蓝 $blue');
+    final backNumbers = splitBallText(blue);
+    final oddBacks = backNumbers
+        .where((item) =>
+            analysis.oddTurnBlues.contains(item) && int.parse(item).isOdd)
+        .toList();
+    if (oddBacks.isNotEmpty) {
+      highlights.add('奇${_lottery.backName} ${oddBacks.join(' ')}');
     } else {
-      highlights.add('蓝球 $blue');
+      highlights.add('${_lottery.backName} $blue');
     }
     return highlights.join(' · ');
   }
@@ -593,7 +819,14 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   }
 
   void _generateCombo() {
-    const modes = ['leaderBackfill', 'tailPrime', 'oddBlueTurn', 'blue', 'balanced', 'hot'];
+    const modes = [
+      'leaderBackfill',
+      'tailPrime',
+      'oddBlueTurn',
+      'blue',
+      'balanced',
+      'hot'
+    ];
     final combo = <Ticket>[];
     final seen = <String>{};
     for (final mode in modes) {
@@ -628,7 +861,8 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
 
   Ticket _withCurrentBase(Ticket ticket) {
     if (ticket.baseIssue.isNotEmpty) return ticket;
-    return ticket.copyWith(baseIssue: _latest?.issue ?? '', baseDate: _latest?.date ?? '');
+    return ticket.copyWith(
+        baseIssue: _latest?.issue ?? '', baseDate: _latest?.date ?? '');
   }
 
   Future<void> _favoriteTickets(List<Ticket> tickets) async {
@@ -637,8 +871,12 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     if (database == null || user == null) return;
     final candidates = <Ticket>[];
     for (final ticket in tickets) {
-      final scoped = _withCurrentBase(ticket).copyWith(createdAt: DateTime.now());
-      if (_favorites.any((item) => item.key == scoped.key && item.baseIssue == scoped.baseIssue)) continue;
+      final scoped =
+          _withCurrentBase(ticket).copyWith(createdAt: DateTime.now());
+      if (_favorites.any((item) =>
+          item.key == scoped.key && item.baseIssue == scoped.baseIssue)) {
+        continue;
+      }
       candidates.add(scoped);
     }
     if (candidates.isEmpty) {
@@ -647,7 +885,9 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     }
     final inserted = await database.appendRecords(
       user.id,
-      candidates.map((ticket) => ticketToRecordPayload(ticket)).toList(growable: false),
+      candidates
+          .map((ticket) => ticketToRecordPayload(ticket))
+          .toList(growable: false),
     );
     final persisted = inserted.map(ticketFromRecord).toList(growable: false);
     if (!mounted) return;
@@ -662,26 +902,31 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     final analysis = _analysis;
     final random = Random(DateTime.now().millisecondsSinceEpoch);
     final reds = <String>{..._manualReds};
-    final preferred = _preferredRedPool(_manualStrategy, analysis).toList()..shuffle(random);
+    final preferred = _preferredRedPool(_manualStrategy, analysis).toList()
+      ..shuffle(random);
     for (final red in preferred) {
-      if (reds.length >= 6) break;
+      if (reds.length >= _lottery.frontCount) break;
       reds.add(red);
     }
-    while (reds.length < 6) {
-      reds.add(ballLabel(random.nextInt(33) + 1));
+    while (reds.length < _lottery.frontCount) {
+      reds.add(ballLabel(random.nextInt(_lottery.frontMax) + 1));
     }
     final sortedReds = reds.toList()..sort();
-    final blue = _manualBlue.isNotEmpty ? _manualBlue : _pickBlue(_manualStrategy, analysis, random);
+    final blue = _manualBlue.isNotEmpty
+        ? _manualBlue
+        : _pickBlue(_manualStrategy, analysis, random);
     setState(() {
       _manualTicket = Ticket(
         reds: sortedReds,
         blue: blue,
         strategy: _manualStrategy,
         score: _scoreTicket(sortedReds, blue, analysis),
-        reason: '自选补全 · 已保留 ${_manualReds.length} 个红球${_manualBlue.isEmpty ? '' : '和蓝球 $_manualBlue'}',
+        reason:
+            '自选补全 · 已保留 ${_manualReds.length} 个${_lottery.frontName}${_manualBlue.isEmpty ? '' : '和${_lottery.backName} $_manualBlue'}',
         sourceName: '自选补全',
         baseIssue: _latest?.issue ?? '',
         baseDate: _latest?.date ?? '',
+        lotteryKey: _lotteryKey,
       );
       _status = '已补全自选号';
     });
@@ -691,10 +936,10 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     setState(() {
       if (_manualReds.contains(red)) {
         _manualReds.remove(red);
-      } else if (_manualReds.length < 6) {
+      } else if (_manualReds.length < _lottery.frontCount) {
         _manualReds.add(red);
       } else {
-        _status = '红球最多选择 6 个';
+        _status = '${_lottery.frontName}最多选择 ${_lottery.frontCount} 个';
       }
       _manualTicket = null;
     });
@@ -702,7 +947,16 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
 
   void _toggleBlue(String blue) {
     setState(() {
-      _manualBlue = _manualBlue == blue ? '' : blue;
+      final selected = splitBallText(_manualBlue).toSet();
+      if (selected.contains(blue)) {
+        selected.remove(blue);
+      } else if (selected.length < _lottery.backCount) {
+        selected.add(blue);
+      } else {
+        _status = '${_lottery.backName}最多选择 ${_lottery.backCount} 个';
+      }
+      final values = selected.toList()..sort();
+      _manualBlue = joinBallText(values);
       _manualTicket = null;
     });
   }
@@ -732,6 +986,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         type: 'favorite',
         ticketKey: ticket.key,
         baseIssue: ticket.baseIssue,
+        lotteryKey: _lotteryKey,
       );
     }
     if (!mounted) return;
@@ -741,16 +996,25 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     });
   }
 
-  Future<void> _clearFavorites() async {
+  Future<void> _clearFavoritesForIssue(String issue) async {
     final database = _database;
     final user = _user;
-    if (database == null || user == null) return;
-    await database.clearRecords(user.id, type: 'favorite');
+    if (database == null || user == null || issue.isEmpty || issue == '全部') {
+      return;
+    }
+    await database.clearRecordsForIssue(
+      user.id,
+      type: 'favorite',
+      lotteryKey: _lotteryKey,
+      baseIssue: issue == '未分期' ? '' : issue,
+    );
     if (!mounted) return;
     setState(() {
-      _favorites.clear();
-      _selectedFavoriteIssue = '';
-      _status = '已清空收藏记录';
+      _favorites.removeWhere((item) {
+        final itemIssue = item.baseIssue.isEmpty ? '未分期' : item.baseIssue;
+        return itemIssue == issue;
+      });
+      _status = '已清空第 $issue 期收藏';
     });
   }
 
@@ -764,7 +1028,9 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const NativeLoadingScreen();
-    if (_error != null) return NativeErrorScreen(error: _error!, onRetry: _bootstrap);
+    if (_error != null) {
+      return NativeErrorScreen(error: _error!, onRetry: _bootstrap);
+    }
     if (_user == null) {
       return AuthPage(
         loading: _authLoading,
@@ -776,12 +1042,13 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('双色球助手'),
+        title: Text(_lottery.appTitle),
         actions: [
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 4),
-              child: Text(_user!.displayName, style: const TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(_user!.displayName,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
           ),
           IconButton(
@@ -816,22 +1083,27 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
                 index: _tabIndex,
                 children: [
                   OverviewPage(
+                    lottery: _lottery,
                     latest: _latest,
                     analysis: _analysis,
                     tickets: _tickets,
+                    onLotteryChanged: _switchLottery,
                     onFavorite: _favorite,
                     onCopy: _copyTicket,
                     onRegenerate: _regenerate,
                   ),
                   PickPage(
+                    lottery: _lottery,
                     strategy: _strategy,
                     manualStrategy: _manualStrategy,
                     tickets: _tickets,
                     manualReds: _manualReds,
                     manualBlue: _manualBlue,
                     manualTicket: _manualTicket,
-                    onStrategyChanged: (value) => setState(() => _strategy = value),
-                    onManualStrategyChanged: (value) => setState(() => _manualStrategy = value),
+                    onStrategyChanged: (value) =>
+                        setState(() => _strategy = value),
+                    onManualStrategyChanged: (value) =>
+                        setState(() => _manualStrategy = value),
                     onGenerate: _regenerate,
                     onGenerateCombo: _generateCombo,
                     onFavorite: _favorite,
@@ -843,17 +1115,20 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
                     onCompleteManual: _completeManual,
                     onClearManual: _clearManual,
                   ),
-                  AnalysisPage(analysis: _analysis, draws: _draws),
+                  AnalysisPage(
+                      lottery: _lottery, analysis: _analysis, draws: _draws),
                   RecordsPage(
+                    lottery: _lottery,
                     favorites: _favorites,
                     draws: _draws,
                     selectedIssue: _selectedFavoriteIssue,
                     currentIssue: _latest?.issue ?? '',
-                    onIssueChanged: (value) => setState(() => _selectedFavoriteIssue = value),
+                    onIssueChanged: (value) =>
+                        setState(() => _selectedFavoriteIssue = value),
                     onCopy: _copyTicket,
                     onCopyAll: _copyTickets,
                     onRemove: _removeFavorite,
-                    onClear: _clearFavorites,
+                    onClearIssue: _clearFavoritesForIssue,
                   ),
                   CommunityPage(
                     sources: _communitySources,
@@ -876,11 +1151,26 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         selectedIndex: _tabIndex,
         onDestinationSelected: _selectTab,
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: '速览'),
-          NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune), label: '选号'),
-          NavigationDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.bar_chart), label: '分析'),
-          NavigationDestination(icon: Icon(Icons.bookmark_border), selectedIcon: Icon(Icons.bookmark), label: '记录'),
-          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: '社区'),
+          NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard),
+              label: '速览'),
+          NavigationDestination(
+              icon: Icon(Icons.tune_outlined),
+              selectedIcon: Icon(Icons.tune),
+              label: '选号'),
+          NavigationDestination(
+              icon: Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart),
+              label: '分析'),
+          NavigationDestination(
+              icon: Icon(Icons.bookmark_border),
+              selectedIcon: Icon(Icons.bookmark),
+              label: '记录'),
+          NavigationDestination(
+              icon: Icon(Icons.groups_outlined),
+              selectedIcon: Icon(Icons.groups),
+              label: '社区'),
         ],
       ),
     );

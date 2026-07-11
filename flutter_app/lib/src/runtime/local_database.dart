@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
@@ -52,6 +52,7 @@ class StoredDraw {
     required this.red,
     required this.blue,
     required this.source,
+    this.lotteryKey = 'ssq',
   });
 
   final String issue;
@@ -59,6 +60,7 @@ class StoredDraw {
   final List<String> red;
   final String blue;
   final String source;
+  final String lotteryKey;
 
   Map<String, dynamic> toJson() {
     return {
@@ -67,6 +69,7 @@ class StoredDraw {
       'red': red,
       'blue': blue,
       'source': source,
+      'lotteryKey': lotteryKey,
     };
   }
 }
@@ -88,6 +91,7 @@ class StoredRecord {
     required this.score,
     required this.createdAt,
     required this.pinnedAt,
+    this.lotteryKey = 'ssq',
   });
 
   final String id;
@@ -105,6 +109,7 @@ class StoredRecord {
   final double? score;
   final String createdAt;
   final String pinnedAt;
+  final String lotteryKey;
 
   StoredRecord copyWith({
     String? pinnedAt,
@@ -125,6 +130,7 @@ class StoredRecord {
       score: score,
       createdAt: createdAt,
       pinnedAt: pinnedAt ?? this.pinnedAt,
+      lotteryKey: lotteryKey,
     );
   }
 
@@ -145,6 +151,7 @@ class StoredRecord {
       'score': score,
       'createdAt': createdAt,
       'pinnedAt': pinnedAt,
+      'lotteryKey': lotteryKey,
     };
   }
 }
@@ -165,16 +172,18 @@ class LocalDatabase {
     final dbPath = p.join(supportDir.path, 'ssq_mobile_app.sqlite');
     final db = await openDatabase(
       dbPath,
-      version: 2,
+      version: 4,
       onCreate: (database, version) async {
         await database.execute('''
           CREATE TABLE draws (
-            issue TEXT PRIMARY KEY,
+            issue TEXT NOT NULL,
             date TEXT NOT NULL,
             red_json TEXT NOT NULL,
             blue TEXT NOT NULL,
             source TEXT NOT NULL,
-            fetched_at TEXT NOT NULL
+            lottery_key TEXT NOT NULL DEFAULT 'ssq',
+            fetched_at TEXT NOT NULL,
+            PRIMARY KEY (lottery_key, issue)
           )
         ''');
         await database.execute('''
@@ -215,6 +224,7 @@ class LocalDatabase {
             reason TEXT NOT NULL,
             score REAL,
             pinned_at TEXT NOT NULL DEFAULT '',
+            lottery_key TEXT NOT NULL DEFAULT 'ssq',
             created_at TEXT NOT NULL
           )
         ''');
@@ -226,7 +236,8 @@ class LocalDatabase {
             ticket_key,
             base_issue,
             strategy,
-            source_name
+            source_name,
+            lottery_key
           )
         ''');
         await database.execute('''
@@ -243,7 +254,7 @@ class LocalDatabase {
           )
         ''');
       },
-          onUpgrade: (database, oldVersion, newVersion) async {
+      onUpgrade: (database, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await database.execute('''
             CREATE TABLE IF NOT EXISTS app_meta (
@@ -252,12 +263,93 @@ class LocalDatabase {
             )
           ''');
         }
+        if (oldVersion < 3) {
+          await _ensureColumn(
+              database, 'draws', 'lottery_key', "TEXT NOT NULL DEFAULT 'ssq'");
+          await _ensureColumn(database, 'records', 'lottery_key',
+              "TEXT NOT NULL DEFAULT 'ssq'");
+          await database.execute('DROP INDEX IF EXISTS records_dedup_idx');
+          await database.execute('''
+            CREATE UNIQUE INDEX IF NOT EXISTS records_dedup_idx
+            ON records (
+              user_id,
+              type,
+              ticket_key,
+              base_issue,
+              strategy,
+              source_name,
+              lottery_key
+            )
+          ''');
+        }
+        if (oldVersion < 4) {
+          await _migrateDrawsCompositeKey(database);
+        }
       },
     );
 
     final instance = LocalDatabase._(db);
     await instance._seedSampleDraws(sampleDraws);
     return instance;
+  }
+
+  static Future<void> _ensureColumn(
+    Database database,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final columns = await database.rawQuery('PRAGMA table_info($table)');
+    final exists = columns.any((row) => row['name'] == column);
+    if (!exists) {
+      await database
+          .execute('ALTER TABLE $table ADD COLUMN $column $definition');
+    }
+  }
+
+  static Future<void> _migrateDrawsCompositeKey(Database database) async {
+    await _ensureColumn(
+        database, 'draws', 'lottery_key', "TEXT NOT NULL DEFAULT 'ssq'");
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS draws_v4 (
+        issue TEXT NOT NULL,
+        date TEXT NOT NULL,
+        red_json TEXT NOT NULL,
+        blue TEXT NOT NULL,
+        source TEXT NOT NULL,
+        lottery_key TEXT NOT NULL DEFAULT 'ssq',
+        fetched_at TEXT NOT NULL,
+        PRIMARY KEY (lottery_key, issue)
+      )
+    ''');
+    await database.execute('''
+      INSERT OR REPLACE INTO draws_v4 (
+        issue,
+        date,
+        red_json,
+        blue,
+        source,
+        lottery_key,
+        fetched_at
+      )
+      SELECT
+        issue,
+        date,
+        red_json,
+        blue,
+        source,
+        COALESCE(lottery_key, 'ssq'),
+        fetched_at
+      FROM draws
+      WHERE issue IS NOT NULL AND issue != ''
+    ''');
+    await database.execute('DROP TABLE draws');
+    await database.execute('ALTER TABLE draws_v4 RENAME TO draws');
+    await database.delete(
+      'draws',
+      where: "lottery_key = ? AND LENGTH(issue) < 5",
+      whereArgs: ['dlt'],
+    );
   }
 
   Future<void> close() => _db.close();
@@ -282,7 +374,27 @@ class LocalDatabase {
   }
 
   Future<void> clearLocalSessionToken() async {
-    await _db.delete('app_meta', where: 'key = ?', whereArgs: [sessionCookieName]);
+    await _db
+        .delete('app_meta', where: 'key = ?', whereArgs: [sessionCookieName]);
+  }
+
+  Future<String> readMeta(String key, {String defaultValue = ''}) async {
+    final rows = await _db.query(
+      'app_meta',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    return rows.isEmpty ? defaultValue : rows.first['value'] as String;
+  }
+
+  Future<void> saveMeta(String key, String value) async {
+    await _db.insert(
+      'app_meta',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> _seedSampleDraws(List<Map<String, dynamic>> sampleDraws) async {
@@ -298,9 +410,12 @@ class LocalDatabase {
     await upsertDraws(draws);
   }
 
-  Future<List<StoredDraw>> readDraws({int limit = 240}) async {
+  Future<List<StoredDraw>> readDraws(
+      {int limit = 240, String lotteryKey = 'ssq'}) async {
     final rows = await _db.query(
       'draws',
+      where: 'lottery_key = ?',
+      whereArgs: [lotteryKey],
       orderBy: 'CAST(issue AS INTEGER) DESC',
       limit: limit,
     );
@@ -320,6 +435,7 @@ class LocalDatabase {
           'red_json': json.encode(draw.red),
           'blue': draw.blue,
           'source': draw.source,
+          'lottery_key': draw.lotteryKey,
           'fetched_at': now,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
@@ -472,11 +588,12 @@ class LocalDatabase {
   Future<List<StoredRecord>> readRecords(
     String userId, {
     int limit = 3000,
+    String lotteryKey = 'ssq',
   }) async {
     final rows = await _db.query(
       'records',
-      where: 'user_id = ?',
-      whereArgs: [userId],
+      where: 'user_id = ? AND lottery_key = ?',
+      whereArgs: [userId, lotteryKey],
       orderBy:
           "CASE WHEN pinned_at = '' THEN 1 ELSE 0 END, pinned_at DESC, created_at DESC",
       limit: limit,
@@ -514,6 +631,7 @@ class LocalDatabase {
           'reason': record.reason,
           'score': record.score,
           'pinned_at': record.pinnedAt,
+          'lottery_key': record.lotteryKey,
           'created_at': record.createdAt,
         },
         conflictAlgorithm: ConflictAlgorithm.ignore,
@@ -541,22 +659,49 @@ class LocalDatabase {
     required String type,
     required String ticketKey,
     required String baseIssue,
+    String? lotteryKey,
   }) {
+    final where = lotteryKey == null
+        ? 'user_id = ? AND type = ? AND ticket_key = ? AND base_issue = ?'
+        : 'user_id = ? AND type = ? AND ticket_key = ? AND base_issue = ? AND lottery_key = ?';
+    final args = lotteryKey == null
+        ? <Object?>[userId, type, ticketKey, baseIssue]
+        : <Object?>[userId, type, ticketKey, baseIssue, lotteryKey];
     return _db.delete(
       'records',
-      where: 'user_id = ? AND type = ? AND ticket_key = ? AND base_issue = ?',
-      whereArgs: [userId, type, ticketKey, baseIssue],
+      where: where,
+      whereArgs: args,
     );
   }
 
-  Future<int> clearRecords(String userId, {String? type}) {
-    if (type == null) {
-      return _db.delete('records', where: 'user_id = ?', whereArgs: [userId]);
+  Future<int> clearRecords(String userId, {String? type, String? lotteryKey}) {
+    final clauses = ['user_id = ?'];
+    final args = <Object?>[userId];
+    if (type != null) {
+      clauses.add('type = ?');
+      args.add(type);
+    }
+    if (lotteryKey != null) {
+      clauses.add('lottery_key = ?');
+      args.add(lotteryKey);
     }
     return _db.delete(
       'records',
-      where: 'user_id = ? AND type = ?',
-      whereArgs: [userId, type],
+      where: clauses.join(' AND '),
+      whereArgs: args,
+    );
+  }
+
+  Future<int> clearRecordsForIssue(
+    String userId, {
+    required String type,
+    required String lotteryKey,
+    required String baseIssue,
+  }) {
+    return _db.delete(
+      'records',
+      where: 'user_id = ? AND type = ? AND lottery_key = ? AND base_issue = ?',
+      whereArgs: [userId, type, lotteryKey, baseIssue],
     );
   }
 
@@ -605,41 +750,71 @@ class LocalDatabase {
     );
   }
 
-  StoredDraw? normalizeDraw(Map<String, dynamic> raw) {
+  StoredDraw? normalizeDraw(
+    Map<String, dynamic> raw, {
+    String lotteryKey = 'ssq',
+    int frontMax = 33,
+    int backMax = 16,
+    int frontCount = 6,
+    int backCount = 1,
+  }) {
     final reds = _parseBallList(
       raw['red'] ?? raw['redballs'] ?? raw['redBalls'],
-      33,
-    ).take(6).toList(growable: false);
+      frontMax,
+    ).take(frontCount).toList(growable: false);
     final blues = _parseBallList(
       raw['blue'] ?? raw['blueballs'] ?? raw['blueBalls'],
-      16,
-    );
+      backMax,
+    ).take(backCount).toList(growable: false);
     final issue = _stringifyValue(
       raw['code'] ?? raw['issue'] ?? raw['expect'] ?? '',
     );
     final date = _stringifyValue(
       raw['date'] ?? raw['openTime'] ?? raw['time'] ?? '',
     );
-    if (issue.isEmpty || reds.length != 6 || blues.isEmpty) return null;
+    if (issue.isEmpty ||
+        reds.length != frontCount ||
+        blues.length != backCount) {
+      return null;
+    }
     return StoredDraw(
       issue: issue,
       date: date,
       red: reds,
-      blue: blues.first,
+      blue: blues.join(' '),
       source: _stringifyValue(raw['source'] ?? 'local'),
+      lotteryKey: lotteryKey,
     );
   }
 
   StoredRecord? normalizeRecord(
     Map<String, dynamic> raw, {
     required String userId,
+    int frontMax = 33,
+    int backMax = 16,
+    int frontCount = 6,
+    int backCount = 1,
   }) {
+    final lotteryKey =
+        _stringifyValue(raw['lotteryKey'] ?? raw['lottery'] ?? 'ssq');
+    if (lotteryKey == 'dlt' &&
+        frontMax == 33 &&
+        backMax == 16 &&
+        frontCount == 6 &&
+        backCount == 1) {
+      frontMax = 35;
+      backMax = 12;
+      frontCount = 5;
+      backCount = 2;
+    }
     final reds = _parseBallList(
       raw['reds'] ?? raw['red'] ?? raw['redBalls'],
-      33,
-    ).take(6).toList(growable: false);
-    final blues = _parseBallList(raw['blue'] ?? raw['blueBalls'], 16);
-    if (reds.length != 6 || blues.isEmpty) return null;
+      frontMax,
+    ).take(frontCount).toList(growable: false);
+    final blues = _parseBallList(raw['blue'] ?? raw['blueBalls'], backMax)
+        .take(backCount)
+        .toList(growable: false);
+    if (reds.length != frontCount || blues.length != backCount) return null;
 
     final type = <String>{'ticket', 'favorite', 'community', 'manual'}
             .contains(raw['type'])
@@ -658,9 +833,9 @@ class LocalDatabase {
       id: _stringifyValue(raw['id'] ?? _uuid.v4()),
       userId: userId,
       type: type,
-      key: '${reds.join(',')}+${blues.first}',
+      key: '${reds.join(',')}+${blues.join(' ')}',
       reds: reds,
-      blue: blues.first,
+      blue: blues.join(' '),
       strategy: _stringifyValue(raw['strategy'] ?? raw['kind'] ?? ''),
       sourceName: _stringifyValue(raw['sourceName']),
       sourceUrl: _stringifyValue(raw['sourceUrl']),
@@ -670,6 +845,7 @@ class LocalDatabase {
       score: raw['score'] == null ? null : double.tryParse('${raw['score']}'),
       createdAt: createdAt,
       pinnedAt: pinnedAt,
+      lotteryKey: lotteryKey,
     );
   }
 
@@ -680,6 +856,7 @@ class LocalDatabase {
       red: List<String>.from(json.decode(row['red_json'] as String) as List),
       blue: row['blue'] as String,
       source: row['source'] as String,
+      lotteryKey: row['lottery_key'] as String? ?? 'ssq',
     );
   }
 
@@ -700,6 +877,7 @@ class LocalDatabase {
       score: row['score'] == null ? null : (row['score'] as num).toDouble(),
       createdAt: row['created_at'] as String,
       pinnedAt: row['pinned_at'] as String,
+      lotteryKey: row['lottery_key'] as String? ?? 'ssq',
     );
   }
 
@@ -811,5 +989,3 @@ class AppException implements Exception {
   @override
   String toString() => message;
 }
-
-

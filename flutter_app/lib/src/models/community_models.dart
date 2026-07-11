@@ -1,15 +1,21 @@
-﻿import 'ssq_models.dart';
+import 'ssq_models.dart';
 
 class CommunitySource {
-  const CommunitySource({required this.name, required this.url});
+  const CommunitySource({
+    required this.name,
+    required this.url,
+    this.lotteryKey = 'ssq',
+  });
 
   final String name;
   final String url;
+  final String lotteryKey;
 
   factory CommunitySource.fromJson(Map<String, dynamic> json) {
     return CommunitySource(
       name: (json['name'] ?? '').toString(),
       url: (json['url'] ?? '').toString(),
+      lotteryKey: (json['lotteryKey'] ?? json['lottery'] ?? 'ssq').toString(),
     );
   }
 }
@@ -34,11 +40,15 @@ class CommunityResonance {
   int get confidence => (mentions * 16 + sourceNames.length * 18).clamp(0, 99);
 
   String get reason {
-    final sourceText = sourceNames.isEmpty ? '社区来源' : sourceNames.take(2).join('、');
-    return '社区共振 · $sourceText · ${sourceNames.length} 源 ${mentions} 次';
+    final sourceText =
+        sourceNames.isEmpty ? '社区来源' : sourceNames.take(2).join('、');
+    return '社区共振 · $sourceText · ${sourceNames.length} 源 $mentions 次';
   }
 
-  Ticket toTicket({required String baseIssue, required String baseDate}) {
+  Ticket toTicket(
+      {required String baseIssue,
+      required String baseDate,
+      String lotteryKey = 'ssq'}) {
     return Ticket(
       reds: reds,
       blue: blue,
@@ -49,6 +59,7 @@ class CommunityResonance {
       sourceUrl: sourceUrl,
       baseIssue: baseIssue,
       baseDate: baseDate,
+      lotteryKey: lotteryKey,
     );
   }
 }
