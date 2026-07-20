@@ -10,6 +10,7 @@ const strategyLabels = {
   'leaderBackfill': '龙头回补',
   'tailPrime': '凤尾质数',
   'oddBlueTurn': '蓝球奇数转势',
+  'inverse': '逆向推荐',
 };
 
 class LotterySpec {

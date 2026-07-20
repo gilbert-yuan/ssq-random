@@ -9,7 +9,7 @@ import { renderNumberGrid } from "./js/components/number-picker.js";
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const TICKET_BATCH_SIZE = 6;
-const COMBO_RECOMMEND_MODES = ["hot", "blue", "blue", "cold", "community"];
+const COMBO_RECOMMEND_MODES = ["balanced", "hot", "blue", "blue", "cold", "community"];
 
 const state = {
   auth: { authenticated: null, user: null, busy: false },
@@ -404,16 +404,26 @@ function generateTicketBatch(selected, size = TICKET_BATCH_SIZE) {
 function generateTicketsByModes(modes, fallbackMode = "balanced", size = modes.length) {
   const tickets = [];
   const seen = new Set();
+  const coverage = { redUsage: new Map(), blueUsage: new Map() };
   let guard = 0;
   while (tickets.length < size && guard < size * 16) {
     const mode = modes[tickets.length % modes.length] || fallbackMode;
-    const ticket = generateTicket(state.analysis, mode, state.community);
+    const ticket = generateTicket(state.analysis, mode, state.community, coverage);
     const key = drawKey(ticket);
     if (!seen.has(key)) {
       seen.add(key);
       tickets.push(ticket);
+      ticket.reds.forEach((red) => coverage.redUsage.set(red, (coverage.redUsage.get(red) || 0) + 1));
+      coverage.blueUsage.set(ticket.blue, (coverage.blueUsage.get(ticket.blue) || 0) + 1);
     }
     guard += 1;
+  }
+  while (tickets.length < size) {
+    const mode = modes[tickets.length % modes.length] || fallbackMode;
+    const ticket = generateTicket(state.analysis, mode, state.community, coverage);
+    tickets.push(ticket);
+    ticket.reds.forEach((red) => coverage.redUsage.set(red, (coverage.redUsage.get(red) || 0) + 1));
+    coverage.blueUsage.set(ticket.blue, (coverage.blueUsage.get(ticket.blue) || 0) + 1);
   }
   return tickets;
 }
@@ -490,13 +500,13 @@ async function generateTickets({ replaceCurrentIssue = false } = {}) {
 
 async function generateComboRecommendTickets() {
   if (!state.analysis) {
-    setStatus("请先刷新数据", "开奖数据加载后才能生成推荐组合", "warn");
+    setStatus("请先刷新数据", "开奖数据加载后才能生成覆盖优选", "warn");
     return;
   }
   state.tickets = generateComboRecommendBatch();
   renderTickets(state.tickets);
   await saveRecords(state.tickets.map((ticket) => toRecord(ticket, "ticket")));
-  setStatus("已生成推荐组合", "热号 1 注 + 蓝球 2 注 + 冷号 1 注 + 社区 1 注");
+  setStatus("已生成覆盖优选", "均衡、热号、蓝球 2 注、冷号、社区各 1 注，降低批次重复");
 }
 
 async function replaceCurrentIssueTicketRecords() {
@@ -605,8 +615,11 @@ function currentIssueFilterValue() {
 function ensureIssueFilterDefault(filterKey) {
   const touchedKey = `${filterKey}Touched`;
   const currentIssue = currentIssueFilterValue();
-  if (!state.filters[touchedKey] && currentIssue) {
-    state.filters[filterKey] = currentIssue;
+  const records = state.records?.records || [];
+  const type = filterKey === "favoriteIssue" ? "favorite" : "manual";
+  const hasCurrentIssueRecord = records.some((item) => item.type === type && item.baseIssue === currentIssue);
+  if (!state.filters[touchedKey]) {
+    state.filters[filterKey] = hasCurrentIssueRecord ? currentIssue : "";
   }
   return state.filters[filterKey] || "";
 }

@@ -35,12 +35,12 @@ class RecordsPage extends StatelessWidget {
     final issueSet = favorites
         .map((ticket) => ticket.baseIssue.isEmpty ? '未分期' : ticket.baseIssue)
         .toSet();
+    final hasCurrentIssueFavorites = currentIssue.isNotEmpty &&
+        favorites.any((ticket) => ticket.baseIssue == currentIssue);
     if (currentIssue.isNotEmpty) issueSet.add(currentIssue);
     final issues = issueSet.toList()..sort((a, b) => b.compareTo(a));
     final options = [...issues, '全部'];
-    final defaultIssue = currentIssue.isNotEmpty
-        ? currentIssue
-        : (issues.isNotEmpty ? issues.first : '全部');
+    final defaultIssue = hasCurrentIssueFavorites ? currentIssue : '全部';
     final activeIssue =
         selectedIssue.isNotEmpty && options.contains(selectedIssue)
             ? selectedIssue
@@ -53,6 +53,10 @@ class RecordsPage extends StatelessWidget {
           }).toList(growable: false);
     final summary = FavoriteStats.fromTickets(favorites, draws);
     final visibleSummary = FavoriteStats.fromTickets(visible, draws);
+    final strategyGroups = <String, List<Ticket>>{};
+    for (final ticket in favorites) {
+      strategyGroups.putIfAbsent(ticket.strategy, () => []).add(ticket);
+    }
     final activeLabel = activeIssue == currentIssue && currentIssue.isNotEmpty
         ? '当前期'
         : '第 $activeIssue 期';
@@ -75,6 +79,36 @@ class RecordsPage extends StatelessWidget {
                   '当前 ${formatYuan(visibleSummary.totalAmount)}'),
             ],
           ),
+        ),
+        const SizedBox(height: 10),
+        SectionCard(
+          title: '个人策略统计',
+          child: strategyGroups.isEmpty
+              ? const Text('收藏号码后会在开奖核对后展示策略结果。')
+              : Column(
+                  children: strategyGroups.entries.map((entry) {
+                    final checked = entry.value
+                        .map((ticket) =>
+                            checkTicketPrize(ticket, draws, spec: lottery))
+                        .whereType<PrizeCheck>()
+                        .toList(growable: false);
+                    final wins = checked.where((prize) => prize.won).length;
+                    final averageRed = checked.isEmpty
+                        ? '待开奖'
+                        : (checked.fold<int>(0,
+                                      (sum, prize) => sum + prize.redHits) /
+                                  checked.length)
+                            .toStringAsFixed(2);
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(strategyLabels[entry.key] ?? entry.key),
+                      subtitle: Text(
+                          '${entry.value.length} 注 · 已核对 ${checked.length} 注 · 中奖 $wins 注'),
+                      trailing: Text('均红 $averageRed'),
+                    );
+                  }).toList(growable: false),
+                ),
         ),
         const SizedBox(height: 10),
         SectionCard(

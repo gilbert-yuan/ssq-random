@@ -45,23 +45,21 @@ function buildCommunityWeights(stats, community) {
   }));
 }
 
-export function generateTicket(analysisResult, kind = "balanced", community = null) {
-  let redWeights = kind === "community" ? buildCommunityWeights(analysisResult.redStats, community) : buildWeights(analysisResult.redStats, kind);
-  const blueWeights = buildWeights(analysisResult.blueStats, kind === "community" ? "balanced" : kind);
+function coveragePenalty(reds, blue, coverage) {
+  if (!coverage) return 0;
+  const redUsage = coverage.redUsage || new Map();
+  const blueUsage = coverage.blueUsage || new Map();
+  const reusedReds = reds.reduce((total, red) => total + (redUsage.get(red) || 0), 0);
+  return reusedReds * 1.4 + (blueUsage.get(blue) || 0) * 1.6;
+}
 
-  if (kind === "community" && community?.aggregate?.[0]) {
-    const top = community.aggregate[0];
-    return {
-      reds: top.reds,
-      blue: top.blue,
-      kind,
-      score: ticketFitness(top.reds, top.blue),
-      reason: `来自社区共振 ${top.count} 次，来源 ${top.sources.slice(0, 2).join(" / ")}`
-    };
-  }
+export function generateTicket(analysisResult, kind = "balanced", community = null, coverage = null) {
+  const redWeights = kind === "community" ? buildCommunityWeights(analysisResult.redStats, community) : buildWeights(analysisResult.redStats, kind);
+  const blueWeights = buildWeights(analysisResult.blueStats, kind === "community" ? "balanced" : kind);
 
   let best = null;
   let bestScore = -1;
+  let bestPriority = -Infinity;
   let bestBlue = "01";
   for (let attempt = 0; attempt < 220; attempt += 1) {
     const used = new Set();
@@ -71,12 +69,14 @@ export function generateTicket(analysisResult, kind = "balanced", community = nu
     const reds = Array.from(used).sort((x, y) => Number(x) - Number(y));
     const blue = weightedPick(blueWeights).number;
     const score = ticketFitness(reds, blue);
-    if (score > bestScore) {
+    // A batch benefits from broad red/blue coverage more than repeated near-identical tickets.
+    const priority = score * 2 - coveragePenalty(reds, blue, coverage);
+    if (priority > bestPriority) {
       best = reds;
       bestBlue = blue;
       bestScore = score;
+      bestPriority = priority;
     }
-    if (score >= 14) break;
   }
 
   const shape = getDrawShape({ red: best, blue: bestBlue });

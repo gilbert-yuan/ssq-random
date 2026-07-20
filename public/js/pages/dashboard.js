@@ -9,7 +9,7 @@ import { bootstrapDashboardData } from "./bootstrap.js";
 
 const $ = (selector) => document.querySelector(selector);
 const TICKET_BATCH_SIZE = 6;
-const COMBO_RECOMMEND_MODES = ["hot", "blue", "blue", "cold", "community"];
+const COMBO_RECOMMEND_MODES = ["balanced", "hot", "blue", "blue", "cold", "community"];
 
 const els = {
   limitInput: $("#limitInput"),
@@ -497,23 +497,28 @@ function generateTicketBatch(selected, size = TICKET_BATCH_SIZE) {
 function generateTicketsByModes(modes, fallbackMode = "balanced", size = modes.length) {
   const tickets = [];
   const seen = new Set();
+  const coverage = { redUsage: new Map(), blueUsage: new Map() };
   let guard = 0;
 
   while (tickets.length < size && guard < size * 16) {
     const mode = modes[tickets.length % modes.length] || fallbackMode;
-    const ticket = generateTicket(state.analysis, mode, state.community);
+    const ticket = generateTicket(state.analysis, mode, state.community, coverage);
     const key = drawKey(ticket);
     if (!seen.has(key)) {
       seen.add(key);
       tickets.push(ticket);
+      ticket.reds.forEach((red) => coverage.redUsage.set(red, (coverage.redUsage.get(red) || 0) + 1));
+      coverage.blueUsage.set(ticket.blue, (coverage.blueUsage.get(ticket.blue) || 0) + 1);
     }
     guard += 1;
   }
 
   while (tickets.length < size) {
     const mode = modes[tickets.length % modes.length] || fallbackMode;
-    const ticket = generateTicket(state.analysis, mode, state.community);
+    const ticket = generateTicket(state.analysis, mode, state.community, coverage);
     tickets.push(ticket);
+    ticket.reds.forEach((red) => coverage.redUsage.set(red, (coverage.redUsage.get(red) || 0) + 1));
+    coverage.blueUsage.set(ticket.blue, (coverage.blueUsage.get(ticket.blue) || 0) + 1);
   }
 
   return tickets.slice(0, size);
@@ -822,7 +827,7 @@ async function generateTickets({ replaceCurrentIssue = false } = {}) {
 
 async function generateComboRecommendTickets() {
   if (!state.analysis) {
-    setStatus("请先获取开奖数据", "没有历史样本时无法生成推荐组合", "warn");
+    setStatus("请先获取开奖数据", "没有历史样本时无法生成覆盖优选", "warn");
     return;
   }
   setBusy(true);
@@ -830,15 +835,15 @@ async function generateComboRecommendTickets() {
     const tickets = generateComboRecommendBatch();
     renderTickets(tickets);
     const saveResult = await saveRecords(tickets.map((ticket) => toRecord(ticket, "ticket")));
-    els.ticketMode.textContent = "推荐组合 · 热1 蓝2 冷1 社1";
+    els.ticketMode.textContent = "覆盖优选 · 均1 热1 蓝2 冷1 社1";
     if (saveResult?.ok) {
-      setStatus("已生成推荐组合", "热号追踪 1 注 + 蓝球重点 2 注 + 冷号补位 1 注 + 社区共振 1 注");
+      setStatus("已生成覆盖优选", "均衡趋势 1 注 + 热号追踪 1 注 + 蓝球重点 2 注 + 冷号补位 1 注 + 社区共振 1 注，降低批次重复");
     } else if (saveResult?.authRequired) {
-      setStatus("已生成推荐组合", "当前未登录，仅本地展示；登录后可自动保存。", "warn");
+      setStatus("已生成覆盖优选", "当前未登录，仅本地展示；登录后可自动保存。", "warn");
     }
   } catch (error) {
     syncAuth(error?.data);
-    setStatus("推荐组合生成失败", error.message, "warn");
+    setStatus("覆盖优选生成失败", error.message, "warn");
   } finally {
     setBusy(false);
   }
@@ -904,8 +909,11 @@ function currentIssueFilterValue() {
 function ensureIssueFilterDefault(filterKey) {
   const touchedKey = `${filterKey}Touched`;
   const currentIssue = currentIssueFilterValue();
-  if (!state.filters[touchedKey] && currentIssue) {
-    state.filters[filterKey] = currentIssue;
+  const records = state.records?.records || [];
+  const type = filterKey === "favoriteIssue" ? "favorite" : "manual";
+  const hasCurrentIssueRecord = records.some((item) => item.type === type && item.baseIssue === currentIssue);
+  if (!state.filters[touchedKey]) {
+    state.filters[filterKey] = hasCurrentIssueRecord ? currentIssue : "";
   }
   return state.filters[filterKey] || "";
 }

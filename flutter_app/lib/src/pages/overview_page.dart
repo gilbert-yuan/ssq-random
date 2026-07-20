@@ -1,30 +1,39 @@
 import 'package:flutter/material.dart';
 
 import '../models/ssq_models.dart';
-import '../runtime/local_database.dart';
 import '../widgets/ssq_widgets.dart';
 
 class OverviewPage extends StatelessWidget {
   const OverviewPage({
     super.key,
     required this.lottery,
-    required this.latest,
-    required this.analysis,
-    required this.tickets,
+    required this.manualStrategy,
+    required this.manualReds,
+    required this.manualBlue,
+    required this.manualTicket,
     required this.onLotteryChanged,
+    required this.onManualStrategyChanged,
     required this.onFavorite,
     required this.onCopy,
-    required this.onRegenerate,
+    required this.onToggleRed,
+    required this.onToggleBlue,
+    required this.onCompleteManual,
+    required this.onClearManual,
   });
 
   final LotterySpec lottery;
-  final StoredDraw? latest;
-  final AnalysisSnapshot analysis;
-  final List<Ticket> tickets;
+  final String manualStrategy;
+  final Set<String> manualReds;
+  final String manualBlue;
+  final Ticket? manualTicket;
   final ValueChanged<String> onLotteryChanged;
+  final ValueChanged<String> onManualStrategyChanged;
   final ValueChanged<Ticket> onFavorite;
   final ValueChanged<Ticket> onCopy;
-  final VoidCallback onRegenerate;
+  final ValueChanged<String> onToggleRed;
+  final ValueChanged<String> onToggleBlue;
+  final VoidCallback onCompleteManual;
+  final VoidCallback onClearManual;
 
   @override
   Widget build(BuildContext context) {
@@ -44,49 +53,57 @@ class OverviewPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        LatestDrawCard(draw: latest, lottery: lottery),
-        const SizedBox(height: 10),
         SectionCard(
-          title: '${lottery.shortName}速览',
-          trailing: Text('${analysis.count} 期样本'),
-          child: MetricGrid(metrics: analysis.metrics),
-        ),
-        const SizedBox(height: 10),
-        SectionCard(
-          title: '趋势建议',
-          trailing: FilledButton.tonalIcon(
-            onPressed: onRegenerate,
-            icon: const Icon(Icons.refresh),
-            label: const Text('换一组'),
+          title: '自主选号',
+          trailing: StrategyDropdown(
+            value: manualStrategy,
+            onChanged: onManualStrategyChanged,
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdviceRow(
-                  label: '${lottery.frontName}热号',
-                  value: analysis.hotReds.take(lottery.frontCount).join(' ')),
-              AdviceRow(
-                  label: '${lottery.frontName}冷号',
-                  value: analysis.coldReds.take(lottery.frontCount).join(' ')),
-              AdviceRow(
-                  label: '${lottery.backName}重点',
-                  value: analysis.hotBlues
-                      .take(
-                          lottery.backCount + 2 > 4 ? lottery.backCount + 2 : 4)
-                      .join(' ')),
+              SubTitle(lottery.frontName),
+              NumberGrid(
+                max: lottery.frontMax,
+                selected: manualReds,
+                color: const Color(0xFFDC2626),
+                onTap: onToggleRed,
+              ),
+              const SizedBox(height: 10),
+              SubTitle(lottery.backName),
+              NumberGrid(
+                max: lottery.backMax,
+                selected: splitBallText(manualBlue).toSet(),
+                color: const Color(0xFF2563EB),
+                onTap: onToggleBlue,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onCompleteManual,
+                      child: const Text('补全号码'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onClearManual,
+                      child: const Text('清空选择'),
+                    ),
+                  ),
+                ],
+              ),
+              if (manualTicket != null) ...[
+                const SizedBox(height: 8),
+                TicketTile(
+                  ticket: manualTicket!,
+                  onCopy: () => onCopy(manualTicket!),
+                  onFavorite: () => onFavorite(manualTicket!),
+                ),
+              ],
             ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        SectionCard(
-          title: '建议号',
-          child: Column(
-            children: tickets.take(3).map((ticket) {
-              return TicketTile(
-                ticket: ticket,
-                onCopy: () => onCopy(ticket),
-                onFavorite: () => onFavorite(ticket),
-              );
-            }).toList(),
           ),
         ),
       ],

@@ -8,44 +8,30 @@ class PickPage extends StatelessWidget {
     super.key,
     required this.lottery,
     required this.strategy,
-    required this.manualStrategy,
+    required this.coverageTicketCount,
     required this.tickets,
-    required this.manualReds,
-    required this.manualBlue,
-    required this.manualTicket,
     required this.onStrategyChanged,
-    required this.onManualStrategyChanged,
     required this.onGenerate,
+    required this.onCoverageCountChanged,
     required this.onGenerateCombo,
     required this.onFavorite,
     required this.onFavoriteAll,
     required this.onCopy,
     required this.onCopyAll,
-    required this.onToggleRed,
-    required this.onToggleBlue,
-    required this.onCompleteManual,
-    required this.onClearManual,
   });
 
   final LotterySpec lottery;
   final String strategy;
-  final String manualStrategy;
+  final int coverageTicketCount;
   final List<Ticket> tickets;
-  final Set<String> manualReds;
-  final String manualBlue;
-  final Ticket? manualTicket;
   final ValueChanged<String> onStrategyChanged;
-  final ValueChanged<String> onManualStrategyChanged;
   final VoidCallback onGenerate;
+  final ValueChanged<int> onCoverageCountChanged;
   final VoidCallback onGenerateCombo;
   final ValueChanged<Ticket> onFavorite;
   final ValueChanged<List<Ticket>> onFavoriteAll;
   final ValueChanged<Ticket> onCopy;
   final void Function(List<Ticket> tickets, String label) onCopyAll;
-  final ValueChanged<String> onToggleRed;
-  final ValueChanged<String> onToggleBlue;
-  final VoidCallback onCompleteManual;
-  final VoidCallback onClearManual;
 
   @override
   Widget build(BuildContext context) {
@@ -72,10 +58,34 @@ class PickPage extends StatelessWidget {
                     child: FilledButton.tonalIcon(
                       onPressed: onGenerateCombo,
                       icon: const Icon(Icons.auto_awesome),
-                      label: const Text('组合'),
+                      label: const Text('覆盖优选'),
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('覆盖预算',
+                    style: Theme.of(context).textTheme.labelLarge),
+              ),
+              const SizedBox(height: 6),
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 6, label: Text('6 注')),
+                  ButtonSegment(value: 10, label: Text('10 注')),
+                  ButtonSegment(value: 20, label: Text('20 注')),
+                ],
+                selected: {coverageTicketCount},
+                showSelectedIcon: false,
+                onSelectionChanged: (values) =>
+                    onCoverageCountChanged(values.first),
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('预计 ${coverageTicketCount * 2} 元 · 按批次降低红蓝球重复',
+                    style: Theme.of(context).textTheme.bodySmall),
               ),
               const SizedBox(height: 8),
               Row(
@@ -105,51 +115,6 @@ class PickPage extends StatelessWidget {
                   onFavorite: () => onFavorite(ticket),
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        SectionCard(
-          title: '自选补全',
-          trailing: StrategyDropdown(
-              value: manualStrategy, onChanged: onManualStrategyChanged),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SubTitle(lottery.frontName),
-              NumberGrid(
-                  max: lottery.frontMax,
-                  selected: manualReds,
-                  color: const Color(0xFFDC2626),
-                  onTap: onToggleRed),
-              const SizedBox(height: 10),
-              SubTitle(lottery.backName),
-              NumberGrid(
-                  max: lottery.backMax,
-                  selected: splitBallText(manualBlue).toSet(),
-                  color: const Color(0xFF2563EB),
-                  onTap: onToggleBlue),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                      child: FilledButton(
-                          onPressed: onCompleteManual,
-                          child: const Text('补全'))),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: OutlinedButton(
-                          onPressed: onClearManual, child: const Text('清空'))),
-                ],
-              ),
-              if (manualTicket != null) ...[
-                const SizedBox(height: 8),
-                TicketTile(
-                  ticket: manualTicket!,
-                  onCopy: () => onCopy(manualTicket!),
-                  onFavorite: () => onFavorite(manualTicket!),
-                ),
-              ],
             ],
           ),
         ),

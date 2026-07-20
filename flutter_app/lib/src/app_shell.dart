@@ -64,6 +64,7 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
   String _lotteryKey = 'ssq';
   String _strategy = 'balanced';
   String _manualStrategy = 'balanced';
+  int _coverageTicketCount = 6;
   String _selectedFavoriteIssue = '';
   int _tabIndex = 0;
   bool _loading = true;
@@ -490,16 +491,22 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     }
   }
 
-  List<Ticket> _generateTickets(String strategy, {int count = 6}) {
+  List<Ticket> _generateTickets(String strategy,
+      {int count = 6,
+      Map<String, int>? redUsage,
+      Map<String, int>? blueUsage,
+      bool registerCoverage = true}) {
     final analysis = _analysis;
     if (_draws.isEmpty) return const [];
     final tickets = <Ticket>[];
     final seen = <String>{};
+    final batchRedUsage = redUsage ?? <String, int>{};
+    final batchBlueUsage = blueUsage ?? <String, int>{};
     final random = Random(DateTime.now().millisecondsSinceEpoch);
     var guard = 0;
     while (tickets.length < count && guard < count * 90) {
-      final reds = _pickReds(strategy, analysis, random);
-      final blue = _pickBlue(strategy, analysis, random);
+      final reds = _pickReds(strategy, analysis, random, batchRedUsage);
+      final blue = _pickBlue(strategy, analysis, random, batchBlueUsage);
       final ticket = Ticket(
         reds: reds,
         blue: blue,
@@ -511,14 +518,22 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         baseDate: _latest?.date ?? '',
         lotteryKey: _lotteryKey,
       );
-      if (seen.add(ticket.key)) tickets.add(ticket);
+      if (seen.add(ticket.key)) {
+        tickets.add(ticket);
+        if (registerCoverage) {
+          _registerCoverage(ticket, batchRedUsage, batchBlueUsage);
+        }
+      }
       guard += 1;
     }
     return tickets;
   }
 
   List<String> _pickReds(
-      String strategy, AnalysisSnapshot analysis, Random random) {
+      String strategy,
+      AnalysisSnapshot analysis,
+      Random random,
+      Map<String, int>? redUsage) {
     var best = <String>[];
     var bestScore = -9999;
     for (var attempt = 0; attempt < 72; attempt += 1) {
@@ -547,7 +562,8 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         selected.add(red);
       }
       final reds = selected.toList()..sort();
-      final score = _redQualityScore(reds, analysis, strategy);
+      final score = _redQualityScore(reds, analysis, strategy) -
+          _redCoveragePenalty(reds, redUsage);
       if (score > bestScore) {
         bestScore = score;
         best = reds;
@@ -555,6 +571,12 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     }
     if (best.length == _lottery.frontCount) return best;
     return analysis.allReds.take(_lottery.frontCount).toList();
+  }
+
+  int _redCoveragePenalty(List<String> reds, Map<String, int>? redUsage) {
+    if (redUsage == null) return 0;
+    return reds.fold<int>(
+        0, (total, red) => total + (redUsage[red] ?? 0) * 3);
   }
 
   List<String> _redAnchorsForAttempt(
@@ -644,6 +666,12 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
           ...analysis.coldReds.take(6),
           ...analysis.primeTailReds.take(2),
         ],
+      'inverse' => [
+          ...analysis.allReds.reversed,
+          ...analysis.allReds.reversed,
+          ...analysis.balancedReds.reversed,
+          ...analysis.coldReds.take(8),
+        ],
       _ => [
           ...analysis.balancedReds.take(20),
           ...analysis.hotReds.take(8),
@@ -723,10 +751,25 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     if (strategy == 'cold' && coldHits >= 2 && coldHits <= 4) score += 8;
     if (strategy == 'leaderBackfill' && !leaderHit) score -= 10;
     if (strategy == 'tailPrime' && !tailHit) score -= 10;
+    if (strategy == 'inverse') {
+      final highReds = numbers.where((value) => value > 31).length;
+      final tailCounts = <int, int>{};
+      for (final value in numbers) {
+        final tail = value % 10;
+        tailCounts[tail] = (tailCounts[tail] ?? 0) + 1;
+      }
+      final repeatedTails = tailCounts.values
+          .where((count) => count > 1)
+          .fold<int>(0, (sum, count) => sum + count - 1);
+      score += highReds * 18;
+      score -= repeatedTails * 8;
+      if (consecutivePairs > 0) score -= consecutivePairs * 6;
+    }
     return score;
   }
 
-  String _pickBlue(String strategy, AnalysisSnapshot analysis, Random random) {
+  String _pickBlue(String strategy, AnalysisSnapshot analysis, Random random,
+      [Map<String, int>? blueUsage]) {
     final pool = switch (strategy) {
       'oddBlueTurn' => analysis.oddTurnBlues.isEmpty
           ? analysis.hotBlues.where((item) => int.parse(item).isOdd).toList()
@@ -736,6 +779,13 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
           ...analysis.hotBlues.take(5),
           ...analysis.oddTurnBlues.take(3),
           ...analysis.coldBlues.take(3),
+        ],
+      'inverse' => [
+          ...List.generate(_lottery.backMax, (index) => ballLabel(index + 1))
+              .reversed,
+          ...List.generate(_lottery.backMax, (index) => ballLabel(index + 1))
+              .reversed,
+          ...analysis.coldBlues.take(4),
         ],
       _ => [
           ...analysis.hotBlues.take(5),
@@ -754,7 +804,14 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     final selected = <String>{};
     var guard = 0;
     while (selected.length < _lottery.backCount && guard < 40) {
-      selected.add(ranked[random.nextInt(max(1, limit))]);
+      final candidates = ranked.take(limit).toList(growable: false);
+      final leastUsed = candidates
+          .map((item) => blueUsage?[item] ?? 0)
+          .reduce((current, next) => current < next ? current : next);
+      final leastUsedCandidates = candidates
+          .where((item) => (blueUsage?[item] ?? 0) == leastUsed)
+          .toList(growable: false);
+      selected.add(leastUsedCandidates[random.nextInt(leastUsedCandidates.length)]);
       guard += 1;
     }
     for (final value in fallback) {
@@ -763,6 +820,16 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     }
     final values = selected.toList()..sort();
     return joinBallText(values);
+  }
+
+  void _registerCoverage(Ticket ticket, Map<String, int> redUsage,
+      Map<String, int> blueUsage) {
+    for (final red in ticket.reds) {
+      redUsage[red] = (redUsage[red] ?? 0) + 1;
+    }
+    for (final blue in splitBallText(ticket.blue)) {
+      blueUsage[blue] = (blueUsage[blue] ?? 0) + 1;
+    }
   }
 
   int _scoreTicket(List<String> reds, String blue, AnalysisSnapshot analysis) {
@@ -818,28 +885,40 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
     });
   }
 
-  void _generateCombo() {
+  void _generateCoverage() {
     const modes = [
       'leaderBackfill',
       'tailPrime',
       'oddBlueTurn',
       'blue',
       'balanced',
-      'hot'
+      'hot',
+      'inverse'
     ];
     final combo = <Ticket>[];
     final seen = <String>{};
-    for (final mode in modes) {
-      for (final ticket in _generateTickets(mode, count: 3)) {
+    final redUsage = <String, int>{};
+    final blueUsage = <String, int>{};
+    var modeIndex = 0;
+    while (combo.length < _coverageTicketCount &&
+        modeIndex < _coverageTicketCount * 4) {
+      final mode = modes[modeIndex % modes.length];
+      for (final ticket in _generateTickets(mode,
+          count: 3,
+          redUsage: redUsage,
+          blueUsage: blueUsage,
+          registerCoverage: false)) {
         if (seen.add(ticket.key)) {
           combo.add(ticket);
+          _registerCoverage(ticket, redUsage, blueUsage);
           break;
         }
       }
+      modeIndex += 1;
     }
     setState(() {
       _tickets = combo;
-      _status = '已生成推荐组合';
+      _status = '已生成 ${combo.length} 注覆盖优选';
     });
   }
 
@@ -1084,36 +1163,35 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
                 children: [
                   OverviewPage(
                     lottery: _lottery,
-                    latest: _latest,
-                    analysis: _analysis,
-                    tickets: _tickets,
                     onLotteryChanged: _switchLottery,
-                    onFavorite: _favorite,
-                    onCopy: _copyTicket,
-                    onRegenerate: _regenerate,
-                  ),
-                  PickPage(
-                    lottery: _lottery,
-                    strategy: _strategy,
                     manualStrategy: _manualStrategy,
-                    tickets: _tickets,
                     manualReds: _manualReds,
                     manualBlue: _manualBlue,
                     manualTicket: _manualTicket,
-                    onStrategyChanged: (value) =>
-                        setState(() => _strategy = value),
                     onManualStrategyChanged: (value) =>
                         setState(() => _manualStrategy = value),
-                    onGenerate: _regenerate,
-                    onGenerateCombo: _generateCombo,
                     onFavorite: _favorite,
-                    onFavoriteAll: _favoriteTickets,
                     onCopy: _copyTicket,
-                    onCopyAll: _copyTickets,
                     onToggleRed: _toggleRed,
                     onToggleBlue: _toggleBlue,
                     onCompleteManual: _completeManual,
                     onClearManual: _clearManual,
+                  ),
+                  PickPage(
+                    lottery: _lottery,
+                    strategy: _strategy,
+                    coverageTicketCount: _coverageTicketCount,
+                    tickets: _tickets,
+                    onStrategyChanged: (value) =>
+                        setState(() => _strategy = value),
+                    onGenerate: _regenerate,
+                    onCoverageCountChanged: (value) =>
+                        setState(() => _coverageTicketCount = value),
+                    onGenerateCombo: _generateCoverage,
+                    onFavorite: _favorite,
+                    onFavoriteAll: _favoriteTickets,
+                    onCopy: _copyTicket,
+                    onCopyAll: _copyTickets,
                   ),
                   AnalysisPage(
                       lottery: _lottery, analysis: _analysis, draws: _draws),
@@ -1152,9 +1230,9 @@ class _NativeSsqHomeState extends State<NativeSsqHome> {
         onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard),
-              label: '速览'),
+              icon: Icon(Icons.edit_outlined),
+              selectedIcon: Icon(Icons.edit),
+              label: '自选'),
           NavigationDestination(
               icon: Icon(Icons.tune_outlined),
               selectedIcon: Icon(Icons.tune),

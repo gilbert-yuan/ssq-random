@@ -5,11 +5,12 @@ import '../runtime/local_database.dart';
 import '../widgets/ssq_widgets.dart';
 
 class AnalysisPage extends StatelessWidget {
-  const AnalysisPage(
-      {super.key,
-      required this.lottery,
-      required this.analysis,
-      required this.draws});
+  const AnalysisPage({
+    super.key,
+    required this.lottery,
+    required this.analysis,
+    required this.draws,
+  });
 
   final LotterySpec lottery;
   final AnalysisSnapshot analysis;
@@ -21,26 +22,18 @@ class AnalysisPage extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       children: [
         SectionCard(
-          title: '${lottery.frontName}热度',
-          child: FrequencyList(
-              rows: analysis.redFrequency.take(12).toList(),
-              color: const Color(0xFFDC2626)),
+          title: '分析指标',
+          child: MetricGrid(metrics: analysis.metrics),
         ),
         const SizedBox(height: 10),
         SectionCard(
-          title: '${lottery.backName}热度',
-          child: FrequencyList(
-              rows: analysis.blueFrequency.take(8).toList(),
-              color: const Color(0xFF2563EB)),
-        ),
-        const SizedBox(height: 10),
-        SectionCard(
-          title: '近期形态',
+          title: '近期开奖记录',
           child: Column(
-              children: draws
-                  .take(12)
-                  .map((draw) => DrawHistoryTile(draw: draw))
-                  .toList()),
+            children: draws
+                .take(12)
+                .map((draw) => DrawHistoryTile(draw: draw))
+                .toList(),
+          ),
         ),
       ],
     );
